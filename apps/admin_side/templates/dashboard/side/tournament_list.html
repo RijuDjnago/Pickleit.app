@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block extra_css %}
+    <style xmlns="http://www.w3.org/1999/html">
+        /* Add any additional CSS styles here if needed */
+    </style>
+{% endblock %}
+
+{% block page_title %}
+    Tournament
+{% endblock %}
+
+{% block content %}
+<div class="page-breadcrumb">
+    <div class="row">
+        <div class="col-12 d-flex no-block align-items-center">
+            <h4 class="page-title">Tournament Details</h4>
+            <div class="ml-auto text-right">
+                <nav aria-label="breadcrumb">
+                    <div class="row">
+                        <form id="filterForm" method="GET">
+                            <label for="filter_by"></label>
+                            <select id="filter_by" name="filter_by" class="form-control">
+                                <option value="" hidden>Select tournament type</option>
+                                <option value="all" {% if filter_by == "all" %}selected{% endif %}>All</option>
+                                <option value="open" {% if filter_by == "open" %}selected{% endif %}>Open</option>
+                                <option value="upcoming" {% if filter_by == "upcoming" %}selected{% endif %}>Upcoming</option>
+                                <option value="past" {% if filter_by == "past" %}selected{% endif %}>Past</option>
+                            </select>
+                            <input type="submit" style="display: none;">
+                        </form>
+                        <div class="d-flex flex-row-reverse m-4">
+                            <a href="/admin/create_tournamnet/" class="btn btn-primary font-weight-bold">Add Tournament</a>
+                        </div>
+                    <div>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container-fluid">
+    <div class="card">
+        <div class="card-body">            
+            <div class="table-responsive">
+                <table id="zero_config" class="table table-striped table-bordered">
+                    <thead>
+                        <tr>
+                            <th class="h5 font-weight-bold text-center">Name</th>
+                            <th class="h5 font-weight-bold text-center">Location</th>
+                            <th class="h5 font-weight-bold text-center">Registration Date</th>
+                            <th class="h5 font-weight-bold text-center">Tournament Date</th>
+                            <th class="h5 font-weight-bold text-center">Main Organizer</th>
+                            <th class="h5 font-weight-bold text-center">Sub Organizer</th>
+                            <th class="h5 font-weight-bold text-center">Type</th>
+                            {% comment %} <th class="h5 font-weight-bold text-center">Action</th> {% endcomment %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for tournament in tournamnet_data %}
+                        <tr>
+                            <td>{{ tournament.name }}</td>
+                            <td>{{ tournament.location }}</td>
+                            <td>{{ tournament.registration_start_date }} <br> {{ tournament.registration_end_date }}</td>
+                            <td>{{ tournament.leagues_start_date }} <br> {{ tournament.leagues_end_date }}</td>
+                            <td>{{ tournament.created_by }}</td>
+                            <td>
+                                {% for sub in tournament.sub_organizer %}
+                                    {{sub.first_name}} {{sub.last_name}}
+                                {% endfor %}
+                            </td>
+                            <td>
+                                {% for ty in tournament.type %}
+                                <div class="text-center">
+                                <a href="/admin/view_tournament/{{tournament.id}}/{{ty}}/" class="btn btn-warning mt-2">
+                                {% if ty == "Men" %}
+                                <i class="mdi mdi-human-male" style="font-size: 30px;"></i>
+                                {% endif %}
+                                {% if ty == "Women" %}
+                                <i class="mdi mdi-human-female" style="font-size: 30px;"></i>
+                                {% endif %}
+                                {% if ty == "Open-team" %}
+                                <i class="mdi mdi-human" style="font-size: 30px;"></i>
+                                {% endif %}
+                                {% if ty == "Co-ed" %}
+                                <i class="mdi mdi-human-male-female" style="font-size: 30px;"></i>
+                                {% endif %}
+                                </a>
+                                <br>
+                                </div>
+                                {% endfor %}
+                                
+                            </td>
+                            {% comment %} <td>
+                                <div class="btn-group" role="group" aria-label="Tournament Actions" style="margin-bottom: 0;">
+                                    <a href="#" class="btn btn-info"><i class="fas fa-edit"></i></a>
+                                    <a href="#" class="btn btn-danger"><i class="fas fa-trash-alt"></i></a>
+                                    <!-- Add more actions as needed -->
+                                </div>
+                            </td> {% endcomment %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    document.getElementById('filter_by').addEventListener('change', function() {
+        document.getElementById('filterForm').submit();
+    });
+</script>
+
+{% endblock %}
