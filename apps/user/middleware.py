@@ -17,19 +17,19 @@ class CurrentUserMiddleware:
         return response
 
 
-# import logging
-# from django.utils.deprecation import MiddlewareMixin
+import logging
+from django.utils.deprecation import MiddlewareMixin
 
-# logger = logging.getLogger('myapp')
+logger = logging.getLogger('myapp')
 
-# class RequestLogMiddleware(MiddlewareMixin):
-#     def process_request(self, request):
-#         logger.info(f'Incoming request: {request.method} {request.path} by user {request.user}')
+class RequestLogMiddleware(MiddlewareMixin):
+    def process_request(self, request):
+        logger.info(f'Incoming request: {request.method} {request.path} by user {request.user}')
 
-#     def process_response(self, request, response):
-#         logger.info(f'Response status: {response.status_code} for {request.method} {request.path} by user {request.user}')
-#         return response
+    def process_response(self, request, response):
+        logger.info(f'Response status: {response.status_code} for {request.method} {request.path} by user {request.user}')
+        return response
 
-#     def process_exception(self, request, exception):
-#         logger.error(f'Exception occurred: {exception} for {request.method} {request.path} by user {request.user}')
+    def process_exception(self, request, exception):
+        logger.error(f'Exception occurred: {exception} for {request.method} {request.path} by user {request.user}')
 
