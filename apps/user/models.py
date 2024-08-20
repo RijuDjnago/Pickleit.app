@@ -2,6 +2,8 @@ from django.db import models
 import uuid
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from phonenumber_field.modelfields import PhoneNumberField
+from django.dispatch import receiver
+from django.db.models.signals import post_save
 
 # Create your models here.
 
@@ -18,6 +20,7 @@ class UserManager(BaseUserManager):
     def create_superuser(self, email, password=None, **extra_fields):
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
+        
         return self.create_user(email, password, **extra_fields)
 
 GENDER_STATUS_CHOICES = (
@@ -64,10 +67,10 @@ class User(AbstractBaseUser, PermissionsMixin):
     
     is_organizer  = models.BooleanField(default=False)
     is_organizer_expires_at  = models.DateTimeField(null=True, blank=True)
-    is_merchant = models.BooleanField(default=False)
+
     is_ambassador  = models.BooleanField(default=False)
     is_ambassador_expires_at  = models.DateTimeField(null=True, blank=True)
-
+    is_merchant = models.BooleanField(default=False)
     is_sponsor  = models.BooleanField(default=False)
     is_sponsor_expires_at  = models.DateTimeField(null=True, blank=True)
     
@@ -87,7 +90,11 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     objects = UserManager()
     def __str__(self):
-        return f'Username : {self.username}; Role : {self.role}'
+        if self.username:
+            username = self.username
+        else:
+            username = None
+        return f'Username : {username}; Role : {self.role}'
     
     def get_role(self):
         return f'{self.role}'
@@ -109,12 +116,12 @@ class Role(models.Model):
 APPROVE_STATUS_CHOICES = (
     ('True', 'True'),
     ('False', 'False'),
-    ('', ''),
+    ('Rejected', 'Rejected'),
 )
 
 class ProductSellerRequest(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
-    status = models.CharField(max_length=10, choices=APPROVE_STATUS_CHOICES, default='')
+    status = models.CharField(max_length=10, choices=APPROVE_STATUS_CHOICES, default='False')
 
     def __str__(self):
         return f'{self.user.email} --> {self.status}'
@@ -126,6 +133,13 @@ class ProductSellerRequest(models.Model):
             self.user.is_merchant = True
             self.user.save()
         super().save(*args, **kwargs)
+
+# class ProductSellerDoc(models.Model):
+#     file = models.FileField(upload_to="ProductSellerDoc")
+#     approval = models.ForeignKey(ProductSellerRequest, on_delete=models.CASCADE)
+
+#     def __str__(self):
+#         return f'{self.approval.user.email}'
 
 class IsSponsorDetails(models.Model):
     uuid = models.UUIDField(default=uuid.uuid4)
@@ -171,7 +185,6 @@ class UserAnswer(models.Model):
         return f'User: {self.user.username}, Question: {self.question.question}, Answer: {self.answer}'
 
 
-
 class PDFFile(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='download_user',null=True, blank=True)
     file = models.FileField(upload_to='pdf_files')
@@ -186,6 +199,7 @@ PREFERENCE_CHOICE = (
     ("Doubles","Doubles"),
     ("Co-ed", "Co-ed"),
 )
+
 class MatchingPlayers(models.Model):
     player = models.ForeignKey(User, on_delete=models.CASCADE, related_name="matching_player", null=True, blank=True)
     available_from = models.DateField(null=True, blank=True)
@@ -225,3 +239,25 @@ class LogEntry(models.Model):
 
     def __str__(self):
         return f"{self.user} {self.action} {self.model_name} {self.instance_id} at {self.timestamp}"
+    
+
+class AppVersion(models.Model):
+    version = models.CharField(max_length=5, null=True, blank=True)
+    release_date = models.DateTimeField()
+    description = models.TextField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.CharField(max_length=50, null=True, blank=True)
+    updated_users = models.ManyToManyField(User, blank=True)
+
+    def __str__(self):
+        return f"Version {self.version} : {self.release_date}"
+    
+@receiver(post_save, sender=AppVersion)
+def notification_for_version_update(sender, instance, created, **kwargs):
+    if created:
+        title = "New App Version Released!"
+        message = f"Version {instance.version} is now available. Check it out!"
+        from apps.chat.views import notify_all_users
+        notify_all_users(title, message)
+
+    

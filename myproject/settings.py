@@ -68,9 +68,10 @@ INSTALLED_APPS = [
     'corsheaders',
     'apps.user',
     'apps.team',
-    'apps.accessories',
+    'apps.pickleitcollection',
     'apps.chat',
-    'apps.admin_side'
+    'apps.admin_side',
+    'apps.store',
 ]
 
 MIDDLEWARE = [

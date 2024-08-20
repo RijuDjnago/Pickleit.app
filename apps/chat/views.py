@@ -1,9 +1,9 @@
 from django.shortcuts import render, HttpResponse
 from rest_framework.decorators import api_view
-from .models import *
+from apps.chat.models import *
 from apps.user.helpers import *
 from apps.team.models import *
-from apps.accessories.models import *
+from apps.pickleitcollection.models import *
 from django.db.models import Q
 from rest_framework import status
 from rest_framework.response import Response
@@ -809,7 +809,7 @@ from django.db.models import Exists, OuterRef
 
 def notify_all_users(titel, message):
     try:
-        # Ensure all users have notification rooms or create if not exists
+       
         users_with_rooms = User.objects.annotate(
             has_room=Exists(NotifiRoom.objects.filter(user_id=OuterRef('pk')))
         )
@@ -818,26 +818,19 @@ def notify_all_users(titel, message):
             if not user.has_room:
                 NotifiRoom.objects.create(user=user, name=f'user_{user.id}')
 
-        # Get all users with their corresponding notification rooms
         users_with_rooms = users_with_rooms.prefetch_related('room_user')
 
-        # Create notifications for all users
         notifications = []
         for user in users_with_rooms:
-            room = user.room_user.first()  # Get the first notification room (assuming there's only one)
+            room = user.room_user.first()  
             if room:
                 notification = NotificationBox.objects.create(room=room, notify_for=user, titel=titel, text_message=message)
                 check_token = FCMTokenStore.objects.filter(user__id=user.id)
                 if check_token.exists():
                     get_token = check_token.first().fcm_token["fcm_token"]
                     send_push_notification(get_token,titel, message)
-                # notifications.append(notification)
-                # notification.save()
-
-        # Bulk create notifications
-        # NotificationBox.objects.bulk_create(notifications)
 
         return True
     except Exception as e:
-        print(e)  # Handle exceptions appropriately
+        print(e)  
         return False

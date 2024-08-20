@@ -61,6 +61,7 @@ urlpatterns = [
     path('17c5dca8e378b4c6892d31038c47833ed01b1ea1e9ea549e4c5afe3da79a1eee/', views.fcm_token_store, name="fcm_token_store"),
     path('e7ea0710df3369ef9a67fc0cfcd9a38aa5a13d1e88600707c1c402d325ddd105/', views.delete_fcm_token_at_logout, name="delete_fcm_token_at_logout"),
     path('c303644d18db116ecdfc8f1392771363c3bc0ca3df46336aea7eee5cff14fc74/', views.edit_profile_, name="edit_profile"),
-
+    path('5a3775687e938ab9f9242fdf44d779abf915982e33143725b69a3b898daae2e0/', views.check_update_status, name="check_update_status"),
+    path('23a8648e31374d325b00ccc7f65b45b8bdbbd650fd91824952404e74644c4de1/', views.update_version, name="update_version"),
 
 ]

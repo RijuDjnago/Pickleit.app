@@ -2,8 +2,9 @@ from datetime import datetime, date
 import secrets, string, uuid, hashlib, random
 from apps.user.models import *
 from apps.team.models import *
-from apps.accessories.models import *
+from apps.pickleitcollection.models import *
 from django.core.mail import send_mail
+from apps.store.models import *
 
 class GenerateKey():
     
@@ -61,7 +62,7 @@ class GenerateKey():
             return self.gen_advertisement_key()
     def gen_payment_key(self):
         payment_key = self.hashed_string
-        check_payment_key = PaymentTable.objects.filter(secret_key=payment_key).only('id')
+        check_payment_key = PaymentDetails.objects.filter(secret_key=payment_key).only('id')
         if not check_payment_key.exists():
             return payment_key
         else:
@@ -93,14 +94,14 @@ class GenerateKey():
         
     def gen_cart_idd(self):
         cart_key = self.hashed_string
-        check_cart_key = MerchandiseStoreProductBuy.objects.filter(cart_idd=cart_key).only('id')
+        check_cart_key = CustomerMerchandiseStoreProductBuy.objects.filter(cart_idd=cart_key).only('id')
         if not check_cart_key.exists():
             return cart_key
         else:
             return self.gen_cart_idd()
     def gen_buy_product_sk(self):
         p_key = self.hashed_string
-        check_p_key = MerchandiseStoreProductBuy.objects.filter(secret_key=p_key).only('id')
+        check_p_key = CustomerMerchandiseStoreProductBuy.objects.filter(secret_key=p_key).only('id')
         if not check_p_key.exists():
             return p_key
         else:
@@ -116,7 +117,7 @@ class GenerateKey():
         
     def generate_cart_unique_id(self):
         cart_key = self.hashed_string
-        check_cart_key =  MerchandiseStoreProductBuy.objects.filter(cart_idd=cart_key).only('id')
+        check_cart_key =  CustomerMerchandiseStoreProductBuy.objects.filter(cart_idd=cart_key).only('id')
         if not check_cart_key.exists():
             return cart_key
         else:

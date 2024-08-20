@@ -7,7 +7,7 @@ from django.core.mail import send_mail
 from apps.user.models import *
 from apps.user.helpers import *
 from apps.team.models import *
-from apps.accessories.models import *
+from apps.pickleitcollection.models import *
 from apps.user.models import *
 from apps.chat.models import *
 from django.db.models import Q, F, CharField, Value, ExpressionWrapper
@@ -15,7 +15,7 @@ from django.db.models.functions import Concat
 from django.utils import timezone
 from django.contrib.auth.hashers import make_password
 from rest_framework import serializers
-import random, json, base64, stripe
+import random, json, base64, stripe # type: ignore
 from django.conf import settings
 from django.db.models import Sum
 from django.db.models import Count, F, Q
@@ -25,14 +25,13 @@ from itertools import combinations
 stripe.api_key = settings.STRIPE_PUBLIC_KEY
 from django.shortcuts import get_object_or_404
 protocol = settings.PROTOCALL
-from apps.team.serializers import *
+from rest_framework.pagination import PageNumberPagination
+from .serializers import *
 from django.core.cache import cache
 from django.conf import settings
 from django.core.cache.backends.base import DEFAULT_TIMEOUT
-from datetime import timezone
-CACHE_TTL = getattr(settings, 'CACHE_TTL', DEFAULT_TIMEOUT)
-from rest_framework.pagination import PageNumberPagination
 
+CACHE_TTL = getattr(settings, 'CACHE_TTL', DEFAULT_TIMEOUT)
 
 
 @api_view(('GET',))
@@ -152,7 +151,8 @@ def create_player(request):
                                 rank=p_ranking, gender=p_gender) 
             save_player.player = user
             save_player.save()
-            # print(User.objects.all())
+            if cache.has_key("player_list"):
+                cache.delete("player_list")
             app_name = "PICKLEit"
             login_link = "#"
             password = six_digit_number
@@ -428,6 +428,8 @@ def edit_player(request):
                                     player_ranking=p_ranking,
                                     identify_player=identify_player,
                                 )
+                if cache.has_key("player_list"):
+                    cache.delete("player_list")
                 p_user = User.objects.filter(id=check_player.first().player.id)
                 if p_user.exists() :
                     get_p_user = p_user.first()
@@ -466,14 +468,16 @@ def delete_player(request):
             if get_player.exists() and check_player.exists():
                 if check_user.first().is_admin:
                     get_player.delete()
-                    check_player.delete()
-                    data["status"], data["message"] = status.HTTP_200_OK, "player Deleted successfully"
-                if check_player.first().created_by == check_user.first():
+                    check_player.delete()                    
+                elif check_player.first().created_by == check_user.first():
                     get_player.delete()
                     check_player.delete()
-                    data["status"], data["message"] = status.HTTP_200_OK, "player Deleted successfully"
                 else:
-                    data["status"], data["message"] = status.HTTP_200_OK, "Something is wrong"
+                    pass
+                if cache.has_key("player_list"):
+                    cache.delete("player_list")
+                data["status"], data["message"] = status.HTTP_200_OK, "player Deleted successfully"
+            
             else:
                 data["status"], data["message"] = status.HTTP_200_OK, "player not found"
         else:
@@ -575,120 +579,6 @@ def list_player(request):
 
     return Response(data)
 
-# from rest_framework.pagination import PageNumberPagination
-# @api_view(('GET',))
-# def player_list_using_pagination(request):
-#     try:
-#         data = {'status': '','count':'', 'previous':'','next':'','data':[], 'message': ''}
-#         user_uuid = request.GET.get('user_uuid')
-#         user_secret_key = request.GET.get('user_secret_key')
-#         search_text = request.GET.get('search_text')
-#         ordering = request.GET.get('ordering')
-        
-#         check_user = User.objects.filter(uuid=user_uuid, secret_key=user_secret_key)
-#         if check_user.exists():
-#             get_user = check_user.first()
-#             # if get_user.is_admin or get_user.is_organizer or :
-#             if not search_text:
-#                 all_players = Player.objects.all().values()
-#             else:
-#                 all_players = Player.objects.filter(Q(player_first_name__icontains=search_text) | Q(player_last_name__icontains=search_text)).values()
-            
-#             following = AmbassadorsDetails.objects.filter(ambassador=get_user)
-
-#             if following.exists():
-#                 # Retrieve the existing AmbassadorsDetails instance for the ambassador
-#                 following_instance = following.first()
-#                 following_ids = list(following_instance.following.all().values_list("id", flat=True))
-#             else:
-#                 # If AmbassadorsDetails doesn't exist for the ambassador, create a new one
-#                 following_instance = AmbassadorsDetails.objects.create(ambassador=get_user)
-#                 # Save the following instance before retrieving the following_ids
-#                 following_instance.save()
-#                 following_ids = list(following_instance.following.all().values_list("id", flat=True))
-
-#             if ordering == 'latest':
-#                 all_players = all_players.order_by('-id')  # Order by latest ID
-#             elif ordering == 'a-z':
-#                 all_players = all_players.order_by('player_first_name') 
-#             else:
-#                 all_players = all_players.order_by('-id')
-
-#             for player_data in all_players:
-#                 player_id = player_data["id"]
-#                 user_id = player_data["player_id"]
-#                 user_image = User.objects.filter(id=user_id).values("rank","username","email","first_name","last_name","phone","uuid","secret_key","image","is_ambassador","is_sponsor","is_organizer","is_player","gender")
-#                 user_instance = User.objects.filter(id=user_id).first()
-#                 if user_id in following_ids:
-#                     player_data["is_follow"] = True
-#                 else:
-#                     player_data["is_follow"] = False
-#                 player_data["user"] = list(user_image)
-#                 if user_image[0]["gender"] is not None:
-#                     player_data["gender"] = user_image[0]["gender"]
-#                 else:
-#                     player_data["gender"] = "Male"
-                
-#                 player_rank = user_image[0]["rank"]
-#                 if player_rank == "null" or player_rank == "" or  not player_rank:
-#                     player_rank = 1
-#                 else:
-#                     player_rank = float(player_rank)
-
-#                 player_data["player_ranking"] = player_rank
-#                 player_data["user_uuid"] = user_image[0]["uuid"]
-#                 player_data["player__is_ambassador"] = user_image[0]["is_ambassador"]
-#                 player_data["user_secret_key"] = user_image[0]["secret_key"]
-                
-#                 p_image = user_image[0]["image"]
-#                 if str(p_image) == "" or str(p_image) == "null":
-#                     player_data["player_image"] = None
-#                 else:
-#                     player_data["player_image"] = user_image[0]["image"]
-                
-#                 player_data["is_edit"] = player_data["created_by_id"] == get_user.id
-#                 player_instance = Player.objects.get(id=player_id)
-#                 team_ids = list(player_instance.team.values_list('id', flat=True))
-#                 player_data["team"] = []
-#                 for team_id in team_ids:
-#                     team = Team.objects.filter(id=team_id).values()
-#                     if team.exists():
-#                         player_data["team"].append(list(team))
-#             if len(all_players) == 0:
-#                 data["status"] = status.HTTP_200_OK
-#                 data["count"] = 0
-#                 data["previous"] = None
-#                 data["next"] = None
-#                 data["data"] = []
-#                 data["message"] = "No Result found"
-#             else:
-#                 paginator = PageNumberPagination()
-#                 paginator.page_size = 20  # Set the page size to 20
-#                 players_data = paginator.paginate_queryset(all_players, request)
-#                 paginated_response = paginator.get_paginated_response(players_data)
-#                 data["status"] = status.HTTP_200_OK
-#                 data["count"] = paginated_response.data["count"]
-#                 data["previous"] = paginated_response.data["previous"]
-#                 data["next"] = paginated_response.data["next"]
-#                 data["data"] = paginated_response.data["results"]
-#                 data["message"] = "Data found"
-#         else:
-#             data["count"] = 0
-#             data["previous"] = None
-#             data["next"] = None
-#             data["data"] = []
-#             data['status'] = status.HTTP_401_UNAUTHORIZED
-#             data['message'] = "Unauthorized access"
-
-#     except Exception as e:
-#         data["count"] = 0
-#         data["previous"] = None
-#         data["next"] = None
-#         data["data"] = []
-#         data['status'] = status.HTTP_400_BAD_REQUEST
-#         data['message'] = str(e)
-
-#     return Response(data)
 
 @api_view(['GET'])
 def player_list_using_pagination(request):
@@ -723,11 +613,55 @@ def player_list_using_pagination(request):
             else:
                 all_players = all_players.order_by('-id')
 
+            #cache implementation
+            if not search_text and not ordering:
+                players_list = f'player_list'
+                if cache.get(players_list):
+                    print('from cache........')
+                    players = cache.get(players_list)
+                else:
+                    print('from db.............')
+                    players = all_players
+                    cache.set(players_list, players)
+            elif search_text and not ordering:
+                search_list = f'{search_text}'
+                if cache.get(search_list):
+                    print('from cache........')
+                    players = cache.get(search_list)
+                else:
+                    print('from db.............')
+                    players = all_players
+                    cache.set(search_list, players)
+
+            elif not search_text and ordering:
+                ordered_list = f'{ordering}'
+                if cache.get(ordered_list):
+                    print('from cache........')
+                    players = cache.get(ordered_list)
+                else:
+                    print('from db.............')
+                    players = all_players
+                    cache.set(ordered_list, players)
+            else:
+                cache_key = f'player_list_{search_text}_{ordering}'
+                if cache.get(cache_key):
+                    print('from cache........')
+                    players = cache.get(cache_key)
+                else:
+                    print('from db.............')
+                    players = all_players
+                    cache.set(cache_key, players)
+                    
             paginator = PageNumberPagination()
             paginator.page_size = 20  # Set the page size to 20
             result_page = paginator.paginate_queryset(all_players, request)
             serializer = PlayerSerializer(result_page, many=True, context={'request': request})
             serialized_data = serializer.data
+            
+            for p_data in serialized_data:
+                p_data["is_edit"] = p_data["created_by_id"] == get_user.id
+                p_data["is_follow"] = True if p_data["player_id"] in following_ids else False
+                
 
             if not serialized_data:
                 data["status"] = status.HTTP_200_OK
@@ -761,284 +695,6 @@ def player_list_using_pagination(request):
         data['message'] = str(e)
 
     return Response(data)
-
-
-
-# class TeamSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model = Team
-#         fields = '__all__'
-
-# class PlayerSerializer(serializers.ModelSerializer):
-#     player_picture = serializers.ImageField(source='player_image')  # Change field name
-#     team = TeamSerializer(many=True)
-#     class Meta:
-#         model = Player
-#         fields = '__all__'
-
-# #done
-# @api_view(('GET',))
-# def list_player(request):
-#     try:
-#         data = {'status': '', 'data': [], 'message': ''}
-#         user_uuid = request.GET.get('user_uuid')
-#         user_secret_key = request.GET.get('user_secret_key')
-#         search_text = request.GET.get('search_text')
-        
-#         check_user = User.objects.filter(uuid=user_uuid, secret_key=user_secret_key)
-#         if check_user.exists():
-#             get_user = check_user.first()
-#             if get_user.is_admin or get_user.is_organizer:
-#                 if not search_text:
-#                     all_players = Player.objects.all().order_by('-id')
-#                 else:
-#                     all_players = Player.objects.filter(Q(player_first_name__icontains=search_text) | Q(player_last_name__icontains=search_text)).order_by('-id')
-#             elif get_user.is_team_manager or get_user.is_coach:
-#                 if not search_text:
-#                     all_players = Player.objects.filter(created_by_id=get_user.id).order_by('-id')
-#                 else:
-#                     all_players = Player.objects.filter(created_by_id=get_user.id).filter(Q(player_first_name__icontains=search_text) | Q(player_last_name__icontains=search_text)).order_by('-id')
-
-#             player_serializer = PlayerSerializer(all_players, many=True)  # Instantiate the PlayerSerializer with queryset
-#             serialized_data = player_serializer.data  # Serialize the queryset data
-
-#             for jk in serialized_data:
-#                 if jk["player_image"] is not None:
-#                     jk["player__image"] = jk["player_image"].replace('/media', '')
-#                 else:
-#                     jk["player__image"] = None
-
-#                 if jk["player_image"] is not None:
-#                     jk["player_image"] = jk["player_image"].replace('/media', '')
-#                 else:
-#                     jk["player_image"] = None
-
-#                 if jk["created_by"] == get_user.id:
-#                     jk["is_edit"] = True
-#                 else:
-#                     jk["is_edit"] = False
-#                 del jk["player_picture"]
-#                 # del["player_picture"]
-
-#             data["status"] = status.HTTP_200_OK
-#             data["data"] = serialized_data
-#             data["message"] = "Data found"
-
-#         else:
-#             data['status'] = status.HTTP_401_UNAUTHORIZED
-#             data['message'] = "Unauthorized access"
-
-#     except Exception as e:
-#         data['status'] = status.HTTP_400_BAD_REQUEST
-#         data['message'] = str(e)
-
-#     return Response(data)
-
-
-# @api_view(('POST',))
-# def create_team(request):
-#     try:
-#         data = {'status':'','message':''}
-#         user_uuid = request.data.get('user_uuid')
-#         user_secret_key = request.data.get('user_secret_key')
-
-#         team_name = request.data.get('team_name')
-#         team_location = request.data.get('team_location')
-#         team_image = request.data.get('team_image')
-#         team_person = request.data.get('team_person')
-#         team_type = request.data.get('team_type')
-
-#         p1_uuid = request.data.get('p1_uuid')
-#         p1_secret_key = request.data.get('p1_secret_key')
-
-#         p2_uuid = request.data.get('p2_uuid')
-#         p2_secret_key = request.data.get('p2_secret_key')
-#         # print(team_image)
-#         check_user = User.objects.filter(uuid=user_uuid,secret_key=user_secret_key)
-#         if check_user.exists() :
-#             if not team_name or not team_person :
-#                 data["status"], data["message"] = status.HTTP_403_FORBIDDEN , "Team Name and Team Type (2 person or 4 person) required"
-#                 return Response(data)
-#             else:
-#                 if team_person == "Two Person Team" :
-#                     # if not p1_first_name or not p1_last_name or not p1_email or not p1_phone_number or not p2_first_name or not p2_last_name or not p2_email or not p2_phone_number :
-#                     if not Player.objects.filter(uuid=p1_uuid, secret_key=p1_secret_key).exists() and not Player.objects.filter(uuid=p2_uuid, secret_key=p2_secret_key).exists():
-#                         data["status"], data["message"] = status.HTTP_200_OK , "Players details required"
-#                         return Response(data)
-                    
-#                     elif Player.objects.filter(uuid=p1_uuid, secret_key=p1_secret_key).exists() and not Player.objects.filter(uuid=p2_uuid, secret_key=p2_secret_key).exists():
-#                         obj = GenerateKey()
-#                         team_secret_key = obj.gen_team_key()
-#                         created_by = check_user.first()
-#                         created_by_id = check_user.first().id
-#                         if created_by.is_player is not True:
-#                             data["status"], data["message"] = status.HTTP_200_OK , "Players details required"
-#                             return Response(data)
-#                         if team_image is not None:
-#                             team_image = team_image
-#                         else:
-#                             team_image = None
-#                         save_team = Team(secret_key=team_secret_key,name=team_name,location=team_location,team_person=team_person,team_type=team_type,team_image=team_image,created_by_id=created_by_id)
-#                         save_team.save()
-#                         p1 = Player.objects.filter(uuid=p1_uuid,secret_key=p1_secret_key).first()
-#                         p1.team.add(save_team.id)
-#                         p2 = Player.objects.filter(player=created_by).first()
-#                         p2.team.add(save_team.id)
-#                         check_user.update(is_team_manager = True)
-#                         data["status"], data["message"] = status.HTTP_200_OK, "Team and Player created successfully"
-                    
-#                     elif not Player.objects.filter(uuid=p1_uuid, secret_key=p1_secret_key).exists() and Player.objects.filter(uuid=p2_uuid, secret_key=p2_secret_key).exists():
-#                         obj = GenerateKey()
-#                         team_secret_key = obj.gen_team_key()
-#                         created_by = check_user.first()
-#                         created_by_id = check_user.first().id
-#                         if created_by.is_player is not True:
-#                             data["status"], data["message"] = status.HTTP_200_OK , "Players details required"
-#                             return Response(data)
-#                         if team_image is not None:
-#                             team_image = team_image
-#                         else:
-#                             team_image = None
-#                         save_team = Team(secret_key=team_secret_key,name=team_name,location=team_location,team_person=team_person,team_type=team_type,team_image=team_image,created_by_id=created_by_id)
-#                         save_team.save()
-#                         p1 = Player.objects.filter(uuid=p1_uuid,secret_key=p1_secret_key).first()
-#                         p1.team.add(save_team.id)
-#                         p2 = Player.objects.filter(player=created_by).first()
-#                         p2.team.add(save_team.id)
-#                         check_user.update(is_team_manager = True)
-#                         data["status"], data["message"] = status.HTTP_200_OK, "Team and Player created successfully"
-
-#                     elif Player.objects.filter(uuid=p1_uuid, secret_key=p1_secret_key).exists() and Player.objects.filter(uuid=p2_uuid, secret_key=p2_secret_key).exists():
-#                         obj = GenerateKey()
-#                         team_secret_key = obj.gen_team_key()
-#                         player1_secret_key = obj.gen_player_key()
-#                         obj2 = GenerateKey()
-#                         player2_secret_key = obj2.gen_player_key()
-#                         created_by_id = check_user.first().id
-#                         if team_image is not None:
-#                             team_image = team_image
-#                         else:
-#                             team_image = None
-#                         save_team = Team(secret_key=team_secret_key,name=team_name,location=team_location,team_person=team_person,team_type=team_type,team_image=team_image,created_by_id=created_by_id)
-#                         save_team.save()
-#                         p1 = Player.objects.filter(uuid=p1_uuid,secret_key=p1_secret_key).first()
-#                         p1.team.add(save_team.id)
-#                         p2 = Player.objects.filter(uuid=p2_uuid,secret_key=p2_secret_key).first()
-#                         p2.team.add(save_team.id)
-#                         check_user.update(is_team_manager = True)
-#                         data["status"], data["message"] = status.HTTP_200_OK, "Team and Player created successfully"
-
-#                 elif team_person == "One Person Team" :
-#                     if not p1_uuid or not p1_secret_key:
-#                         data["status"], data["message"] = status.HTTP_200_OK , f"Player details required{p1_uuid},{p1_secret_key}"
-#                         return Response(data)
-#                     else:
-#                         obj = GenerateKey()
-#                         team_secret_key = obj.gen_team_key()
-#                         # player1_secret_key = obj.gen_player_key()
-#                         created_by_id = check_user.first().id
-#                         if team_image is not None:
-#                             team_image = team_image
-#                         else:
-#                             team_image = None
-#                         save_team = Team(secret_key=team_secret_key,name=team_name,location=team_location, team_person=team_person,team_type=team_type,team_image=team_image,created_by_id=created_by_id)
-#                         save_team.save()
-#                         p1 = Player.objects.filter(uuid=p1_uuid,secret_key=p1_secret_key).first()
-#                         p1.team.add(save_team.id)
-#                         check_user.update(is_team_manager = True)
-#                         data["status"], data["message"] = status.HTTP_200_OK, "Team and Player created successfully"
-#                 else:
-#                     pass
-#         else:
-#             data["status"], data["message"] = status.HTTP_404_NOT_FOUND, "User not found"
-#     except Exception as e :
-#         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
-        
-#     return Response(data)
-
-
-#change
-# @api_view(('POST',))
-# def create_team(request):
-#     try:
-#         data = {'status': '', 'message': ''}
-#         user_uuid = request.data.get('user_uuid')
-#         user_secret_key = request.data.get('user_secret_key')
-
-#         team_name = request.data.get('team_name')
-#         team_location = request.data.get('team_location')
-#         team_image = request.data.get('team_image')
-#         team_person = request.data.get('team_person')
-#         team_type = request.data.get('team_type')
-
-#         p1_uuid = request.data.get('p1_uuid')
-#         p1_secret_key = request.data.get('p1_secret_key')
-
-#         p2_uuid = request.data.get('p2_uuid')
-#         p2_secret_key = request.data.get('p2_secret_key')
-
-#         check_user = User.objects.filter(uuid=user_uuid, secret_key=user_secret_key)
-
-#         if not check_user.exists():
-#             data["status"], data["message"] = status.HTTP_404_NOT_FOUND, "User not found"
-#             return Response(data)
-
-#         if not team_name or not team_person:
-#             data["status"], data["message"] = status.HTTP_403_FORBIDDEN, "Team Name and Team Type (2 person or 4 person) required"
-#             return Response(data)
-
-#         if team_person == "Two Person Team":
-#             if not p1_uuid or not p1_secret_key or not p2_uuid or not p2_secret_key:
-#                 data["status"], data["message"] = status.HTTP_400_BAD_REQUEST, "Players details required for Two Person Team"
-#                 return Response(data)
-#             if not Player.objects.filter(uuid=p1_uuid, secret_key=p1_secret_key).exists() or not Player.objects.filter(uuid=p2_uuid, secret_key=p2_secret_key).exists():
-#                 data["status"], data["message"] = status.HTTP_400_BAD_REQUEST, "One or both players do not exist"
-#                 return Response(data)
-#         elif team_person == "One Person Team":
-#             if not p1_uuid or not p1_secret_key:
-#                 data["status"], data["message"] = status.HTTP_400_BAD_REQUEST, "Player details required for One Person Team"
-#                 return Response(data)
-#             if not Player.objects.filter(uuid=p1_uuid, secret_key=p1_secret_key).exists():
-#                 data["status"], data["message"] = status.HTTP_400_BAD_REQUEST, "Player does not exist"
-#                 return Response(data)
-
-#         if team_person == "Two Person Team":
-#             obj = GenerateKey()
-#             team_secret_key = obj.gen_team_key()
-#             player1_secret_key = obj.gen_player_key()
-#             obj2 = GenerateKey()
-#             player2_secret_key = obj2.gen_player_key()
-#             created_by_id = check_user.first().id
-#             if team_image is not None:
-#                 team_image = team_image
-#             else:
-#                 team_image = None
-#             save_team = Team(secret_key=team_secret_key, name=team_name, location=team_location, team_person=team_person, team_type=team_type, team_image=team_image, created_by_id=created_by_id)
-#             save_team.save()
-#             p1 = Player.objects.filter(uuid=p1_uuid, secret_key=p1_secret_key).first()
-#             p1.team.add(save_team.id)
-#             p2 = Player.objects.filter(uuid=p2_uuid, secret_key=p2_secret_key).first()
-#             p2.team.add(save_team.id)
-#             check_user.update(is_team_manager=True)
-#             data["status"], data["message"] = status.HTTP_200_OK, "Team and Player created successfully"
-#         elif team_person == "One Person Team":
-#             obj = GenerateKey()
-#             team_secret_key = obj.gen_team_key()
-#             created_by_id = check_user.first().id
-#             if team_image is not None:
-#                 team_image = team_image
-#             else:
-#                 team_image = None
-#             save_team = Team(secret_key=team_secret_key, name=team_name, location=team_location, team_person=team_person, team_type=team_type, team_image=team_image, created_by_id=created_by_id)
-#             save_team.save()
-#             p1 = Player.objects.filter(uuid=p1_uuid, secret_key=p1_secret_key).first()
-#             p1.team.add(save_team.id)
-#             check_user.update(is_team_manager=True)
-#             data["status"], data["message"] = status.HTTP_200_OK, "Team and Player created successfully"
-
-#     except Exception as e:
-#         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, str(e)
-#     return Response(data)
 
 
 #change
@@ -1099,6 +755,8 @@ def create_team(request):
                 team_image = None
             save_team = Team(secret_key=team_secret_key, name=team_name, location=team_location, team_person=team_person, team_type=team_type, team_image=team_image, created_by_id=created_by_id)
             save_team.save()
+            if cache.has_key("team_list"):
+                cache.delete("team_list")
             p1 = Player.objects.filter(uuid=p1_uuid, secret_key=p1_secret_key).first()
             p1.team.add(save_team.id)
             p2 = Player.objects.filter(uuid=p2_uuid, secret_key=p2_secret_key).first()
@@ -1128,6 +786,8 @@ def create_team(request):
                 team_image = None
             save_team = Team(secret_key=team_secret_key, name=team_name, location=team_location, team_person=team_person, team_type=team_type, team_image=team_image, created_by_id=created_by_id)
             save_team.save()
+            if cache.has_key("team_list"):
+                cache.delete("team_list")
             p1 = Player.objects.filter(uuid=p1_uuid, secret_key=p1_secret_key).first()
             p1.team.add(save_team.id)
             check_user.update(is_team_manager=True)
@@ -1367,8 +1027,6 @@ def team_list_using_pagination(request):
     return Response(data)
 
 
-
-
 @api_view(('GET',))
 def team_view(request):
     try:
@@ -1416,8 +1074,6 @@ def check_add_player(a, b):
             return a, b
     return [],[]
 
-
- 
 
 def check_add_player(a, b):
     if a == b:
@@ -1497,7 +1153,8 @@ def edit_team(request):
                         check_player2_instance.team.add(team_instance.id)
                         new_players.append(check_player2_instance.id)
                         team_instance.save()
-                        
+                        if cache.has_key("team_list"):
+                            cache.delete("team_list")
                         #add notification
                         add, rem = check_add_player(new_players, removed_players)
                         
@@ -1537,7 +1194,9 @@ def edit_team(request):
                         if team_image is not None:
                             team_instance.team_image = team_image
                         
-                        team_instance.save()                        
+                        team_instance.save() 
+                        if cache.has_key("team_list"):
+                            cache.delete("team_list")                       
                         remove_player_team = Player.objects.filter(team__id=team_instance.id)
                         for remove_player in remove_player_team:
                             removed_players.append(remove_player.id)
@@ -1580,139 +1239,6 @@ def edit_team(request):
     return Response(data)
 
 
-# @api_view(('POST',))
-# def edit_team(request):
-#     try:
-#         data = {'status':'', 'message':''}
-#         user_uuid = request.data.get('user_uuid')
-#         user_secret_key = request.data.get('user_secret_key')
-
-#         t_uuid = request.data.get('t_uuid')
-#         t_secret_key = request.data.get('t_secret_key')
-
-#         team_name = request.data.get('team_name')
-#         team_location = request.data.get('team_location')
-#         team_image = request.data.get('team_image')
-#         team_person = request.data.get('team_person')
-#         team_type = request.data.get('team_type')
-
-#         p1_uuid = request.data.get('p1_uuid')
-#         p1_secret_key = request.data.get('p1_secret_key')
-
-#         p2_uuid = request.data.get('p2_uuid')
-#         p2_secret_key = request.data.get('p2_secret_key')
-
-        
-#         check_user = User.objects.filter(uuid=user_uuid, secret_key=user_secret_key)
-#         if check_user.exists(): 
-#             if not team_name or not team_person:
-#                 data["status"], data["message"] = status.HTTP_403_FORBIDDEN , "Team Name and Team Type (2 person or 4 person) required"
-#                 return Response(data)
-
-#             if team_person == "Two Person Team":
-#                 if not p1_uuid or not p1_secret_key or not p2_uuid or not p2_secret_key:
-#                     data["status"], data["message"] = status.HTTP_403_FORBIDDEN , "Player1 and Player2's email and phone number required"
-#                     return Response(data)
-#                 else:
-#                     check_team = Team.objects.filter(uuid=t_uuid, secret_key=t_secret_key)
-#                     check_player1 = Player.objects.filter(uuid=p1_uuid, secret_key=p1_secret_key)
-#                     check_player2 = Player.objects.filter(uuid=p2_uuid, secret_key=p2_secret_key)
-                    
-#                     if check_team.exists():
-#                         team_instance = check_team.first()
-#                         team_instance.name = team_name
-#                         team_instance.location = team_location
-#                         team_instance.team_person = team_person
-#                         team_instance.team_type = team_type
-                        
-#                         # if team_image is not None or str(team_image) != None:
-#                         team_instance.team_image = team_image
-                            
-#                         pre_player_list = Player.objects.filter(team__id=team_instance.id)
-#                         if len(pre_player_list) == 1:
-#                             pre_player1 = pre_player_list.first()
-#                             pre_player1.team.remove(team_instance.id)
-#                             # check_player1.first().team.add(team_instance.id)
-#                         elif len(pre_player_list) == 2:
-#                             pre_player1 = pre_player_list.first()
-#                             pre_player2 = pre_player_list.last()
-#                             pre_player1.team.remove(team_instance.id)
-#                             pre_player2.team.remove(team_instance.id)
-#                             # check_player2.first().team.add(team_instance.id)
-#                             # check_player1.first().team.add(team_instance.id)
-#                         check_player2.first().team.add(team_instance.id)
-#                         check_player1.first().team.add(team_instance.id)
-#                         team_instance.save()
-#                         # player1_change_count = 0
-#                         # player2_change_count = 0
-                        
-#                         # if check_player1 != pre_player1 or check_player1 != pre_player2:
-#                         #     player1_change_count += 1
-#                         # if check_player2 != pre_player1 or check_player2 != pre_player2:
-#                         #     player2_change_count += 1
-                            
-#                         # if player1_change_count != 0 and player2_change_count != 0:
-#                         #     # if team_instance.id != None:
-#                         #     pre_player1.team.remove(team_instance.id)
-#                         #     pre_player2.team.remove(team_instance.id)
-#                         #     check_player2.first().team.add(team_instance.id)
-#                         #     check_player1.first().team.add(team_instance.id)
-#                         # if player1_change_count != 0 and player2_change_count == 0:
-#                         #     # if team_instance.id != None:
-#                         #     pre_player1.team.remove(team_instance.id)
-#                         #     check_player2.first().team.add(team_instance.id)
-#                         # if player1_change_count == 0 and player2_change_count != 0:
-#                         #     # if team_instance.id != None:
-#                         #     pre_player1.team.remove(team_instance.id)
-#                         #     check_player2.first().team.add(team_instance.id)
-#                         data["status"], data["message"] = status.HTTP_200_OK, f"Team edited successfully"
-#                     else:
-#                         data["status"], data["message"] = status.HTTP_404_NOT_FOUND, "Team not found"
-#                     return Response(data)
-                
-#             if team_person == "One Person Team":
-#                 if not p1_uuid or not p1_secret_key:
-#                     data["status"], data["message"] = status.HTTP_403_FORBIDDEN , "Player's email and phone number required"
-#                     return Response(data)
-#                 else:
-#                     check_team = Team.objects.filter(uuid=t_uuid, secret_key=t_secret_key)
-#                     check_player = Player.objects.filter(uuid=p1_uuid, secret_key=p1_secret_key)
-                    
-#                     if check_team.exists() and check_player.exists():
-#                         team_instance = check_team.first()
-#                         team_instance.name = team_name
-#                         team_instance.location = team_location
-#                         team_instance.team_person = team_person
-#                         team_instance.team_type = team_type
-                        
-#                         # if team_image is not None or team_image!="null" or team_image!="":
-#                         team_instance.team_image = team_image
-                        
-#                         team_instance.save()
-                        
-#                         remove_player_team = Player.objects.filter(team__id=team_instance.id)
-#                         if len(remove_player_team) == 1:
-#                             remove_player_team.first().team.remove(team_instance.id)
-#                         elif len(remove_player_team) == 2:
-#                             remove_player_team.first().team.remove(team_instance.id)
-#                             remove_player_team.last().team.remove(team_instance.id)
-
-#                         check_player.first().team.add(team_instance.id)
-                        
-#                         data["status"], data["message"] = status.HTTP_200_OK, f"Team edited successfully"
-#                     else:
-#                         data["status"], data["message"] = status.HTTP_404_NOT_FOUND, "Team not found"
-#                     return Response(data)
-#             else:
-#                 data["status"], data["message"] = status.HTTP_404_NOT_FOUND, "Something is wrong"
-#         else:
-#             data["status"], data["message"] = status.HTTP_404_NOT_FOUND, "User not found"
-#     except Exception as e:
-#         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
-        
-#     return Response(data)
-
-
 @api_view(('POST',))
 def delete_team(request):
     try:
@@ -1737,7 +1263,8 @@ def delete_team(request):
                     players_list = list(players)
 
                     team_league.first().delete()
-
+                    if cache.has_key("team_list"):
+                        cache.delete("team_list")
                     titel = "Team Membership Modification"
                     message = f"Hey player! the team {team_name} has been deleted."
                     for player in players_list:
@@ -2420,8 +1947,6 @@ def create_open_play_tournament(request):
     except Exception as e:
         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
     return Response(data)
-
-
 
 
 @api_view(('GET',))
@@ -3899,6 +3424,7 @@ def assigne_match(request):
     league_secret_key = request.data.get('league_secret_key')
     check_user = User.objects.filter(uuid=user_uuid, secret_key=user_secret_key)
     check_leagues = Leagues.objects.filter(uuid=league_uuid, secret_key=league_secret_key)
+    print("check_user", check_user, "check_leagues", check_leagues)
     #if tournament found 
 
     if check_user.exists() and check_leagues.exists():
@@ -5193,251 +4719,6 @@ def list_leagues_user(request):
     return Response(data)
 
 #new12
-@api_view(('GET',))
-def list_leagues_admin(request):
-    try:
-        data = {'status':'','data':'','message':''}
-        user_uuid = request.GET.get('user_uuid')
-        user_secret_key = request.GET.get('user_secret_key')
-        filter_by = request.GET.get('filter_by')
-        search_text = request.GET.get('search_text')
-        '''
-        registration_open, future, past
-        '''
-        leagues = []
-        check_user = User.objects.filter(uuid=user_uuid,secret_key=user_secret_key)
-        if check_user.exists() and check_user.first().is_admin:
-            if search_text:
-               all_leagues = Leagues.objects.filter(Q(name__icontains=search_text) & Q(is_created=True)).order_by('-id')
-            else:
-                all_leagues = Leagues.objects.filter(is_created=True).order_by('-id')
-            today_date = datetime.now()
-            if filter_by == "future" :
-                all_leagues = all_leagues.filter(registration_start_date__date__gte=today_date, is_complete=False)
-            elif filter_by == "past" :
-                all_leagues = all_leagues.filter(registration_end_date__date__lte=today_date, is_complete=True)
-            elif filter_by == "registration_open" :
-                all_leagues = all_leagues.filter(registration_start_date__date__lte=today_date,registration_end_date__date__gte=today_date, is_complete=False)
-            
-            elif filter_by == "registration_open_date" :
-                all_leagues = all_leagues.filter(registration_start_date__date__lte=today_date,registration_end_date__date__gte=today_date).order_by("leagues_start_date")
-            elif filter_by == "registration_open_name" :
-                all_leagues = all_leagues.filter(registration_start_date__date__lte=today_date,registration_end_date__date__gte=today_date).order_by("name")
-            elif filter_by == "registration_open_city" :
-                all_leagues = all_leagues.filter(registration_start_date__date__lte=today_date,registration_end_date__date__gte=today_date).order_by("city")
-            elif filter_by == "registration_open_state" :
-                all_leagues = all_leagues.filter(registration_start_date__date__lte=today_date,registration_end_date__date__gte=today_date).order_by("state")
-            elif filter_by == "registration_open_country" :
-                all_leagues = all_leagues.filter(registration_start_date__date__lte=today_date,registration_end_date__date__gte=today_date).order_by("country")
-
-            else:
-                all_leagues = all_leagues
-            leagues = all_leagues.values('id','uuid','secret_key','name','location','leagues_start_date','leagues_end_date',
-                               'registration_start_date','registration_end_date','team_type__name','team_person__name','any_rank','start_rank','end_rank',
-                               "street","city","state","postal_code","country","complete_address","latitude","longitude","image", "others_fees", "league_type","registration_fee")
-            output = []
-
-            # Grouping data by 'name'
-            grouped_data = {}
-            for item in list(leagues):
-                item["is_reg_diable"] = True
-                match_ = Tournament.objects.filter(leagues_id=item["id"]).values()
-                if match_.exists():
-                    item["is_reg_diable"] = False
-                le = Leagues.objects.filter(id=item["id"]).first()
-                reg_team =le.registered_team.all().count()
-                max_team = le.max_number_team
-                if max_team <= reg_team:
-                    item["is_reg_diable"] = False
-                key = item['name']
-                if key not in grouped_data:
-                    grouped_data[key] = {
-                                        'name': item['name'], 
-                                        'lat':item['latitude'], 
-                                        'long':item["longitude"],
-                                        'registration_start_date':item["registration_start_date"],
-                                        'registration_end_date':item["registration_end_date"],
-                                        'leagues_start_date':item["leagues_start_date"],
-                                        'leagues_end_date':item["leagues_end_date"],
-                                        'location':item["location"],
-                                        'image':item["image"],
-                                        'type': [item['team_type__name']], 
-                                        'data': [item]
-                                        }
-                else:
-                    grouped_data[key]['type'].append(item['team_type__name'])
-                    grouped_data[key]['data'].append(item)
-
-            # Building the final output
-            for key, value in grouped_data.items():
-                output.append(value)
-
-            # print(output)
-            leagues = output
-            
-            data["status"], data['data'], data["message"] = status.HTTP_200_OK, leagues, "League data"
-        elif check_user.exists():
-            if search_text:
-               all_leagues = Leagues.objects.filter(is_created=True).filter(Q(name__icontains=search_text)).exclude(play_type = "Individual Match Play").order_by('-id')
-            else:
-                all_leagues = Leagues.objects.filter(is_created=True).exclude(play_type = "Individual Match Play").order_by('-id')
-            today_date = datetime.now()
-            if filter_by == "future" :
-                all_leagues = all_leagues.filter(registration_start_date__date__gte=today_date, leagues_start_date__date__gt=today_date, is_complete=False).order_by('-id')
-            elif filter_by == "past" :
-                all_leagues = all_leagues.filter(registration_end_date__date__lte=today_date, leagues_start_date__date__lt=today_date, is_complete=True).order_by('-id')
-            elif filter_by == "registration_open" :
-                all_leagues = all_leagues.filter(registration_start_date__date__lte=today_date,registration_end_date__date__gte=today_date, is_complete=False).order_by('-id')
-            
-            elif filter_by == "registration_open_date" :
-                all_leagues = all_leagues.filter(registration_start_date__date__lte=today_date,registration_end_date__date__gte=today_date).order_by("leagues_start_date")
-            elif filter_by == "registration_open_name" :
-                all_leagues = all_leagues.filter(registration_start_date__date__lte=today_date,registration_end_date__date__gte=today_date).order_by("name")
-            elif filter_by == "registration_open_city" :
-                all_leagues = all_leagues.filter(registration_start_date__date__lte=today_date,registration_end_date__date__gte=today_date).order_by("city")
-            elif filter_by == "registration_open_state" :
-                all_leagues = all_leagues.filter(registration_start_date__date__lte=today_date,registration_end_date__date__gte=today_date).order_by("state")
-            elif filter_by == "registration_open_country" :
-                all_leagues = all_leagues.filter(registration_start_date__date__lte=today_date,registration_end_date__date__gte=today_date).order_by("country")
-            
-            else:
-                all_leagues = all_leagues
-            leagues = all_leagues.values('id','uuid','secret_key','name','location','leagues_start_date','leagues_end_date',
-                               'registration_start_date','registration_end_date','team_type__name','team_person__name','any_rank','start_rank','end_rank',
-                               "street","city","state","postal_code","country","complete_address","latitude","longitude","image","others_fees", "league_type","registration_fee")
-            inditour_data = []
-            individual_tour_data = []
-           
-            get_user = check_user.first()
-            get_player = Player.objects.filter(player=get_user).first()
-            team_list = list(get_player.team.all().values_list("id", flat=True))
-            if get_user.is_player:
-                individual_match =  Leagues.objects.filter(is_created=True).filter(play_type = "Individual Match Play")
-                # individual_match_values = individual_match.values('id','uuid','secret_key','name','location','leagues_start_date','leagues_end_date',
-                #                'registration_start_date','registration_end_date','team_type__name','team_person__name',
-                #                "street","city","state","postal_code","country","complete_address","latitude","longitude","image","others_fees", "league_type","registration_fee","registered_team")
-               
-                # print(team_list)
-                
-                for tour in individual_match:
-                    team_list2 = list(tour.registered_team.all().values_list("id", flat=True))
-                    for team_id in team_list2:
-                        if team_id in team_list:
-                            tour_data = {
-                                'id': tour.id,
-                                'uuid': tour.uuid,
-                                'secret_key': tour.secret_key,
-                                'name': tour.name,
-                                'location': tour.location,
-                                'leagues_start_date': tour.leagues_start_date,
-                                'leagues_end_date': tour.leagues_end_date,
-                                'registration_start_date': tour.registration_start_date,
-                                'registration_end_date': tour.registration_end_date,
-                                'team_type__name': tour.team_type.name,
-                                'team_person__name': tour.team_person.name,
-                                "street": tour.street,
-                                "city": tour.city,
-                                "state": tour.state,
-                                "postal_code": tour.postal_code,
-                                "country": tour.country,
-                                "complete_address": tour.complete_address,
-                                "latitude": tour.latitude,
-                                "longitude": tour.longitude,
-                                # "image": tour.image,
-                                "others_fees": tour.others_fees,
-                                "league_type": tour.league_type,
-                                "registration_fee": tour.registration_fee,
-                                
-                            }
-                            if tour.image:
-                                tour_data["image"] = tour.image
-                            else:
-                                tour_data["image"] = None
-                            registered_team = tour.registered_team.all().values_list("id", flat=True)
-                            team1_id = registered_team[0]
-                            players = Player.objects.filter(team__id=team1_id)
-                            team1_players = []
-                            for player in players:
-                                player_name = f"{player.player.first_name} {player.player.last_name}"
-                                team1_players.append(player_name)
-                            tour_data["team_1_players"] = team1_players
-                            team2_id = registered_team[1]
-                            players = Player.objects.filter(team__id=team2_id)
-                            team2_players = []
-                            for player in players:
-                                player_name = f"{player.player.first_name} {player.player.last_name}"
-                                team2_players.append(player_name)
-                            tour_data["team_2_players"] = team2_players
-                            inditour_data.append(tour_data)
-                        else:
-                            pass
-                           
-            
-            sorted_data = sorted(inditour_data, key=lambda x: x['id'], reverse=True)
-
-            # Initialize an empty list to store unique dictionaries
-            unique_dicts = []
-
-            # Iterate over the sorted list and remove duplicates
-            prev_id = None
-            for d in sorted_data:
-                if d['id'] != prev_id:
-                    unique_dicts.append(d)
-                    prev_id = d['id']
-            
-            leagues = list(leagues) + unique_dicts
-            
-            
-            output = []
-            grouped_data = {}
-            for item in list(leagues):
-                item["is_reg_diable"] = True
-                match_ = Tournament.objects.filter(leagues_id=item["id"]).values()
-                if match_.exists():
-                    item["is_reg_diable"] = False
-                le = Leagues.objects.filter(id=item["id"],  ).first()
-                reg_team =le.registered_team.all().count()
-                max_team = le.max_number_team
-                if max_team <= reg_team:
-                    item["is_reg_diable"] = False
-                key = item['name']
-                if key not in grouped_data:
-                    grouped_data[key] = {
-                                        'name': item['name'], 
-                                        'lat':item['latitude'], 
-                                        'long':item["longitude"],
-                                        'registration_start_date':item["registration_start_date"],
-                                        'registration_end_date':item["registration_end_date"],
-                                        'leagues_start_date':item["leagues_start_date"],
-                                        'leagues_end_date':item["leagues_end_date"],
-                                        'location':item["location"],
-                                        'image':item["image"],
-                                        'type': [item['team_type__name']], 
-                                        'data': [item]
-                                        }
-                else:
-                    grouped_data[key]['type'].append(item['team_type__name'])
-                    grouped_data[key]['data'].append(item)
-
-            # Building the final output
-            for key, value in grouped_data.items():
-                output.append(value)
-
-            # print(output)
-            leagues = output 
-            for item in leagues:
-                item["data"] = sorted(item["data"], key=lambda x: x["id"], reverse=True)
-
-            # Sort the main list based on the 'id' of the first item in the 'data' list
-            leagues_sorted = sorted(leagues, key=lambda x: x["data"][0]["id"], reverse=True)
-            data["inditour_data"]= sorted_data                   
-            data["status"], data['data'], data["message"] = status.HTTP_200_OK, leagues_sorted,"Data found"
-        else:
-            data["status"], data['data'], data["message"] = status.HTTP_404_NOT_FOUND, "","User not found."
-    except Exception as e :
-        data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
-    return Response(data)
-
 
 @api_view(('POST',))
 def tournament_edit(request):
@@ -5622,8 +4903,6 @@ def team_register_user(request):
         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, str(e)
     return Response(data)
 
-
-# from django.utils.timezone import utc
 # @api_view(('POST',))
 # def add_team_to_leagues(request):
 #     try:
@@ -5739,7 +5018,7 @@ def add_team_to_leagues(request):
         get_league = chaek_leagues.first()      
 
         total_registered_teams = get_league.registered_team.all().count()
-        today_date = datetime.now().astimezone(timezone.utc)
+        today_date = timezone.now()
         if get_league.registration_end_date < today_date or get_league.max_number_team == total_registered_teams or get_league.is_complete == True:
             data['status'] = status.HTTP_400_BAD_REQUEST
             data['message'] =  f"Registration is over."
@@ -5926,7 +5205,7 @@ def registered_team_for_leauge_list(request):
                 for i in get_team :
                     team = [{"uuid":i.uuid,"secret_key":i.secret_key,"name":i.name,"location":i.location,"team_image": str(i.team_image) ,"created_by":f"{i.created_by.first_name} {i.created_by.last_name}"}]
                     player_data = []
-                    get_player = Player.objects.filter(team_id=i.id)
+                    get_player = Player.objects.filter(team__in=[i.id])
                     for i in get_player :
                         player_data.append({"uuid":i.uuid,"secret_key":i.secret_key,"player_full_name":i.player_full_name,"player_ranking":i.player.rank})
                     team_data.append({"team":team,"player_data":player_data})
@@ -5943,7 +5222,7 @@ def registered_team_for_leauge_list(request):
                 for i in get_team :
                     team = [{"uuid":i.uuid,"secret_key":i.secret_key,"name":i.name,"location":i.location,"team_image": str(i.team_image) ,"created_by":f"{i.created_by.first_name} {i.created_by.last_name}"}]
                     player_data = []
-                    get_player = Player.objects.filter(team__id=i.id)
+                    get_player = Player.objects.filter(team__in=[i.id])
                     for i in get_player :
                         player_data.append({"uuid":i.uuid,"secret_key":i.secret_key,"player_full_name":i.player_full_name,"player_ranking":i.player.rank})
                     team_data.append({"team":team,"player_data":player_data})
@@ -6045,66 +5324,6 @@ def registered_team_for_leauge_list(request):
 
 
 # updated
-@api_view(('GET',))
-def stats_details(request):
-    try:
-        data = {'status':'','data':[], 'message':''}
-        user_uuid = request.GET.get('user_uuid')
-        user_secret_key = request.GET.get('user_secret_key')
-        check_user = User.objects.filter(secret_key=user_secret_key,uuid=user_uuid)
-        if check_user.exists():
-            get_user = check_user.first()
-            stats_details = {}
-            stats_details["rank"] = get_user.rank
-            try:
-                image = request.build_absolute_uri(get_user.image.url)
-            except:
-                image = None
-            stats_details["name"] = get_user.username
-            stats_details["first_name"] = get_user.first_name
-            stats_details["last_name"] = get_user.last_name
-            stats_details["is_rank"] = get_user.is_rank
-            stats_details["profile_image"] = image
-            check_player_details = Player.objects.filter(player__id=get_user.id)
-            if check_player_details.exists():
-                total_league = 0
-                win_league = 0
-                get_player_details = check_player_details.first()
-                team_ids = list(get_player_details.team.values_list('id', flat=True))
-                total_played_matches = 0
-                win_match = 0 
-                for team_id in team_ids:
-                    team_ = Team.objects.filter(id=team_id).first()
-                    lea = Leagues.objects.filter(registered_team__in=[team_id], is_complete=True)
-                    total_league += lea.count()
-                    win_leagues_count = lea.filter(winner_team=team_).count()
-                    check_match = Tournament.objects.filter(Q(team1=team_, is_completed=True) | Q(team2=team_, is_completed=True))
-                    win_check_match = check_match.filter(winner_team=team_).count()
-                    total_played_matches += check_match.count()
-                    win_match += win_check_match
-                    win_league += win_leagues_count
-
-                stats_details["total_completed_turnament"] = total_league
-                stats_details["total_win_turnament"] = win_league
-                stats_details["total_completed_match"] = total_played_matches
-                stats_details["total_win_match"] = win_match
-                data['message'] = "Stats for this player is fetched successfully."
-            else:
-                
-                stats_details["total_completed_turnament"] = 0
-                stats_details["total_win_turnament"] = 0
-                stats_details["total_completed_match"] = 0
-                stats_details["total_win_match"] = 0
-                data['message'] = "This user is not in player list"
-            data['data'] = [stats_details]
-            data['status'] = status.HTTP_200_OK
-        else:
-            data['status'], data['data'], data['message'] = status.HTTP_400_BAD_REQUEST, [], f"user not found"
-
-    except Exception as e :
-        data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
-    return Response(data)
-
 
 @api_view(('GET',))
 def tournament_details(request):
@@ -6463,19 +5682,133 @@ def my_league(request):
         user_uuid = request.GET.get('user_uuid')
         user_secret_key = request.GET.get('user_secret_key')
         search_text = request.GET.get('search_text')
+        filter_by = request.GET.get('filter_by')
         check_user = User.objects.filter(secret_key=user_secret_key,uuid=user_uuid)
-        today_date = timezone.now()
-        if check_user.exists() and check_user.first().is_organizer:
+        today_date = datetime.now()
+        if check_user.exists():
             get_user = check_user.first()
-            all_leagues_main = Leagues.objects.filter(registration_end_date__date__lte=today_date)
-            all_leagues = all_leagues_main.filter(registered_team__created_by=get_user)
+            all_leagues = Leagues.objects.filter(is_created= True, created_by=get_user).exclude(play_type = "Individual Match Play").order_by('-id')
             if search_text:
-                all_leagues = all_leagues.filter(Q(name__icontains=search_text))
-            all_leagues = all_leagues.values('uuid','secret_key','name','location','leagues_start_date','leagues_end_date',
-                            'registration_start_date','registration_end_date','team_type__name','team_person__name',
-                            "street","city","state","postal_code","country","complete_address","latitude","longitude","is_complete")
+               all_leagues = all_leagues.filter(name__icontains=search_text)
+            else:
+                all_leagues = all_leagues
+            
+            if filter_by == "future" :
+                all_leagues = all_leagues.filter(Q(registration_start_date__date__lte=today_date, registration_end_date__date__gte=today_date) | Q(registration_start_date__date__gte=today_date))
+            elif filter_by == "past" :
+                all_leagues = all_leagues.filter(leagues_end_date__date__lte=today_date, is_complete=True)
+            elif filter_by == "registration_open" :
+                all_leagues = all_leagues.filter(leagues_start_date__date__lte=today_date, leagues_end_date__date__gte=today_date, is_complete=False)
+                
+            leagues = all_leagues.values('id','uuid','secret_key','name','location','leagues_start_date','leagues_end_date',
+                               'registration_start_date','registration_end_date','team_type__name','team_person__name','any_rank','start_rank','end_rank',
+                               "street","city","state","postal_code","country","complete_address","latitude","longitude","image","others_fees", "league_type","registration_fee")
+            
+            inditour_data = []
+            get_player = Player.objects.filter(player=get_user).first()
+            team_list = list(get_player.team.all().values_list("id", flat=True))
+            if get_user.is_player:
+                individual_match =  Leagues.objects.filter(is_created=True, created_by=get_user, play_type="Individual Match Play")
+                
+            for tour in individual_match:
+                team_list2 = list(tour.registered_team.all().values_list("id", flat=True))
+                for team_id in team_list2:
+                    if team_id in team_list:
+                        tour_data = {
+                            'id': tour.id,
+                            'uuid': tour.uuid,
+                            'secret_key': tour.secret_key,
+                            'name': tour.name,
+                            'location': tour.location,
+                            'leagues_start_date': tour.leagues_start_date,
+                            'leagues_end_date': tour.leagues_end_date,
+                            'registration_start_date': tour.registration_start_date,
+                            'registration_end_date': tour.registration_end_date,
+                            'team_type__name': tour.team_type.name,
+                            'team_person__name': tour.team_person.name,
+                            "street": tour.street,
+                            "city": tour.city,
+                            "state": tour.state,
+                            "postal_code": tour.postal_code,
+                            "country": tour.country,
+                            "complete_address": tour.complete_address,
+                            "latitude": tour.latitude,
+                            "longitude": tour.longitude,
+                            "others_fees": tour.others_fees,
+                            "league_type": tour.league_type,
+                            "registration_fee": tour.registration_fee,
+                            
+                        }
+                        if tour.image:
+                            tour_data["image"] = tour.image
+                        else:
+                            tour_data["image"] = None
+                        registered_team = tour.registered_team.all().values_list("id", flat=True)
+                        team1_id = registered_team[0]
+                        players = Player.objects.filter(team__id=team1_id)
+                        team1_players = []
+                        for player in players:
+                            player_name = f"{player.player.first_name} {player.player.last_name}"
+                            team1_players.append(player_name)
+                        tour_data["team_1_players"] = team1_players
+                        team2_id = registered_team[1]
+                        players = Player.objects.filter(team__id=team2_id)
+                        team2_players = []
+                        for player in players:
+                            player_name = f"{player.player.first_name} {player.player.last_name}"
+                            team2_players.append(player_name)
+                        tour_data["team_2_players"] = team2_players
+                        inditour_data.append(tour_data)
+                    else:
+                        pass
+                                      
+            sorted_data = sorted(inditour_data, key=lambda x: x['id'], reverse=True)
+            unique_dicts = []
+            prev_id = None
+            for d in sorted_data:
+                if d['id'] != prev_id:
+                    unique_dicts.append(d)
+                    prev_id = d['id']            
+            leagues = list(leagues) + unique_dicts            
+            output = []
+            grouped_data = {}
+            for item in list(leagues):
+                item["is_reg_diable"] = True
+                match_ = Tournament.objects.filter(leagues_id=item["id"]).values()
+                if match_.exists():
+                    item["is_reg_diable"] = False
+                le = Leagues.objects.filter(id=item["id"],  ).first()
+                reg_team =le.registered_team.all().count()
+                max_team = le.max_number_team
+                if max_team <= reg_team:
+                    item["is_reg_diable"] = False
+                key = item['name']
+                if key not in grouped_data:
+                    grouped_data[key] = {
+                                        'name': item['name'], 
+                                        'lat':item['latitude'], 
+                                        'long':item["longitude"],
+                                        'registration_start_date':item["registration_start_date"],
+                                        'registration_end_date':item["registration_end_date"],
+                                        'leagues_start_date':item["leagues_start_date"],
+                                        'leagues_end_date':item["leagues_end_date"],
+                                        'location':item["location"],
+                                        'image':item["image"],
+                                        'type': [item['team_type__name']], 
+                                        'data': [item]
+                                        }
+                else:
+                    grouped_data[key]['type'].append(item['team_type__name'])
+                    grouped_data[key]['data'].append(item)
+            for key, value in grouped_data.items():
+                output.append(value)
+            leagues = output 
+            for item in leagues:
+                item["data"] = sorted(item["data"], key=lambda x: x["id"], reverse=True)
 
-            data['status'], data['data'], data['message'] = status.HTTP_200_OK, all_leagues, f"Data found"
+            leagues_sorted = sorted(leagues, key=lambda x: x["data"][0]["id"], reverse=True)
+            
+            data['status'], data['data'], data['message'] = status.HTTP_200_OK, leagues_sorted, f"Data found"
         else:
             data['status'], data['data'], data['message'] = status.HTTP_400_BAD_REQUEST, [], f"user not found"
     except Exception as e :
@@ -6842,7 +6175,7 @@ def view_playtype_details(request):
             organizer_list.append(name)
         data['organizer_name_data'] = organizer_list
 
-        sub_org_list = list(league.add_organizer.all().values_list("id", flat=True))  # Corrected "falt" to "flat"
+        sub_org_list = list(league.add_organizer.all().values_list("id", flat=True))  
         if get_user == league.created_by or get_user.id in sub_org_list:
             data['is_organizer'] =  True
             data['invited_code'] =  league.invited_code
@@ -7369,9 +6702,7 @@ def get_match_result(request):
         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, str(e)
     return Response(data)
 
-
-############# Old implementation #############
-
+################ Old Implementation (New from: 7340 ) #################
 
 @api_view(('get',))
 def all_map_data(request):
@@ -7551,6 +6882,7 @@ def all_map_data_new(request):
         data['status'] = status.HTTP_400_BAD_REQUEST
         data['message'] = f"{e}"
     return Response(data)
+
 
 @api_view(('GET',))
 def tournament_joined_details(request):
@@ -7841,39 +7173,317 @@ def tournament_saved_completed_details(request):
     return Response(data)
 
 
-################# New modification ######################
-
-class TeamSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Team
-        fields = ["id","name","team_image","team_person","team_type"]
-
-
-class TournamentSerializer(serializers.ModelSerializer):
-    team1 = TeamSerializer()
-    team2 = TeamSerializer()
-    leagues_location = serializers.SerializerMethodField()
-    winner_team = serializers.SerializerMethodField()
-    loser_team = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Tournament
-        fields = ["team1","team2","winner_team","loser_team","winner_team_score","loser_team_score", "playing_date_time","is_drow","leagues_location"]
-
-    def get_leagues_location(self, obj):
-        return obj.leagues.location
-    
-    def get_winner_team(self, obj):
-        winner_team = obj.winner_team.id if obj.winner_team else None
-        return winner_team
-    
-    def get_loser_team(self, obj):
-        loser_name = obj.loser_team.id if obj.loser_team else None
-        return loser_name
-
-@api_view(("GET",))
-def profile_stats_match_history(request):
+@api_view(('GET',))
+def stats_details(request):
     try:
+        data = {'status':'','data':[], 'message':''}
+        user_uuid = request.GET.get('user_uuid')
+        user_secret_key = request.GET.get('user_secret_key')
+        check_user = User.objects.filter(secret_key=user_secret_key,uuid=user_uuid)
+        if check_user.exists():
+            get_user = check_user.first()
+            stats_details = {}
+            stats_details["rank"] = get_user.rank
+            try:
+                image = request.build_absolute_uri(get_user.image.url)
+            except:
+                image = None
+            stats_details["name"] = get_user.username
+            stats_details["first_name"] = get_user.first_name
+            stats_details["last_name"] = get_user.last_name
+            stats_details["is_rank"] = get_user.is_rank
+            stats_details["profile_image"] = image
+            check_player_details = Player.objects.filter(player__id=get_user.id)
+            if check_player_details.exists():
+                total_league = 0
+                win_league = 0
+                get_player_details = check_player_details.first()
+                team_ids = list(get_player_details.team.values_list('id', flat=True))
+                total_played_matches = 0
+                win_match = 0 
+                for team_id in team_ids:
+                    team_ = Team.objects.filter(id=team_id).first()
+                    lea = Leagues.objects.filter(registered_team__in=[team_id], is_complete=True)
+                    total_league += lea.count()
+                    win_leagues_count = lea.filter(winner_team=team_).count()
+                    check_match = Tournament.objects.filter(Q(team1=team_, is_completed=True) | Q(team2=team_, is_completed=True))
+                    win_check_match = check_match.filter(winner_team=team_).count()
+                    total_played_matches += check_match.count()
+                    win_match += win_check_match
+                    win_league += win_leagues_count
+
+                stats_details["total_completed_turnament"] = total_league
+                stats_details["total_win_turnament"] = win_league
+                stats_details["total_completed_match"] = total_played_matches
+                stats_details["total_win_match"] = win_match
+                data['message'] = "Stats for this player is fetched successfully."
+            else:
+                
+                stats_details["total_completed_turnament"] = 0
+                stats_details["total_win_turnament"] = 0
+                stats_details["total_completed_match"] = 0
+                stats_details["total_win_match"] = 0
+                data['message'] = "This user is not in player list"
+            data['data'] = [stats_details]
+            data['status'] = status.HTTP_200_OK
+        else:
+            data['status'], data['data'], data['message'] = status.HTTP_400_BAD_REQUEST, [], f"user not found"
+
+    except Exception as e :
+        data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
+    return Response(data)
+
+
+@api_view(('GET',))
+def list_leagues_admin(request):
+    try:
+        data = {'status':'','data':'','message':''}
+        user_uuid = request.GET.get('user_uuid')
+        user_secret_key = request.GET.get('user_secret_key')
+        filter_by = request.GET.get('filter_by')
+        search_text = request.GET.get('search_text')
+        '''
+        registration_open, future, past
+        '''
+        leagues = []
+        check_user = User.objects.filter(uuid=user_uuid,secret_key=user_secret_key)
+        today_date = datetime.now()
+        if check_user.exists() and check_user.first().is_admin:
+            if search_text:
+               all_leagues = Leagues.objects.filter(Q(name__icontains=search_text) & Q(is_created=True)).order_by('-id')
+            else:
+                all_leagues = Leagues.objects.filter(is_created=True).order_by('-id')
+            
+            if filter_by == "future" :
+                all_leagues = all_leagues.filter(Q(registration_start_date__date__lte=today_date, registration_end_date__date__gte=today_date) | Q(registration_start_date__date__gte=today_date))
+            elif filter_by == "past" :
+                all_leagues = all_leagues.filter(leagues_end_date__date__lte=today_date, is_complete=True)
+            elif filter_by == "registration_open" :
+                all_leagues = all_leagues.filter(leagues_start_date__date__lte=today_date, leagues_end_date__date__gte=today_date, is_complete=False)
+                
+            
+            elif filter_by == "registration_open_date" :
+                all_leagues = all_leagues.filter(leagues_start_date__date__lte=today_date, leagues_end_date__date__gte=today_date, is_complete=False).order_by("leagues_start_date")
+            elif filter_by == "registration_open_name" :
+                all_leagues = all_leagues.filter(leagues_start_date__date__lte=today_date, leagues_end_date__date__gte=today_date, is_complete=False).order_by("name")
+            elif filter_by == "registration_open_city" :
+                all_leagues = all_leagues.filter(leagues_start_date__date__lte=today_date, leagues_end_date__date__gte=today_date, is_complete=False).order_by("city")
+            elif filter_by == "registration_open_state" :
+                all_leagues = all_leagues.filter(leagues_start_date__date__lte=today_date, leagues_end_date__date__gte=today_date, is_complete=False).order_by("state")
+            elif filter_by == "registration_open_country" :
+                all_leagues = all_leagues.filter(leagues_start_date__date__lte=today_date, leagues_end_date__date__gte=today_date, is_complete=False).order_by("country")
+
+            else:
+                all_leagues = all_leagues
+            leagues = all_leagues.values('id','uuid','secret_key','name','location','leagues_start_date','leagues_end_date',
+                               'registration_start_date','registration_end_date','team_type__name','team_person__name','any_rank','start_rank','end_rank',
+                               "street","city","state","postal_code","country","complete_address","latitude","longitude","image", "others_fees", "league_type","registration_fee")
+            output = []
+
+            # Grouping data by 'name'
+            grouped_data = {}
+            for item in list(leagues):
+                item["is_reg_diable"] = True
+                match_ = Tournament.objects.filter(leagues_id=item["id"]).values()
+                if match_.exists():
+                    item["is_reg_diable"] = False
+                le = Leagues.objects.filter(id=item["id"]).first()
+                reg_team =le.registered_team.all().count()
+                max_team = le.max_number_team
+                if max_team <= reg_team:
+                    item["is_reg_diable"] = False
+                key = item['name']
+                if key not in grouped_data:
+                    grouped_data[key] = {
+                                        'name': item['name'], 
+                                        'lat':item['latitude'], 
+                                        'long':item["longitude"],
+                                        'registration_start_date':item["registration_start_date"],
+                                        'registration_end_date':item["registration_end_date"],
+                                        'leagues_start_date':item["leagues_start_date"],
+                                        'leagues_end_date':item["leagues_end_date"],
+                                        'location':item["location"],
+                                        'image':item["image"],
+                                        'type': [item['team_type__name']], 
+                                        'data': [item]
+                                        }
+                else:
+                    grouped_data[key]['type'].append(item['team_type__name'])
+                    grouped_data[key]['data'].append(item)
+
+            # Building the final output
+            for key, value in grouped_data.items():
+                output.append(value)
+
+            # print(output)
+            leagues = output
+            
+            data["status"], data['data'], data["message"] = status.HTTP_200_OK, leagues, "League data"
+        elif check_user.exists():
+            if search_text:
+               all_leagues = Leagues.objects.filter(is_created=True).filter(Q(name__icontains=search_text)).exclude(play_type = "Individual Match Play").order_by('-id')
+            else:
+                all_leagues = Leagues.objects.filter(is_created=True).exclude(play_type = "Individual Match Play").order_by('-id')
+            if filter_by == "future" :
+                all_leagues = all_leagues.filter(Q(registration_start_date__date__lte=today_date, registration_end_date__date__gte=today_date) | Q(registration_start_date__date__gte=today_date))
+            elif filter_by == "past" :
+                all_leagues = all_leagues.filter(leagues_end_date__date__lte=today_date, is_complete=True)
+            elif filter_by == "registration_open" :
+                all_leagues = all_leagues.filter(leagues_start_date__date__lte=today_date, leagues_end_date__date__gte=today_date, is_complete=False)
+            
+            elif filter_by == "registration_open_date" :
+                all_leagues = all_leagues.filter(leagues_start_date__date__lte=today_date, leagues_end_date__date__gte=today_date, is_complete=False).order_by("leagues_start_date")
+            elif filter_by == "registration_open_name" :
+                all_leagues = all_leagues.filter(leagues_start_date__date__lte=today_date, leagues_end_date__date__gte=today_date, is_complete=False).order_by("name")
+            elif filter_by == "registration_open_city" :
+                all_leagues = all_leagues.filter(leagues_start_date__date__lte=today_date, leagues_end_date__date__gte=today_date, is_complete=False).order_by("city")
+            elif filter_by == "registration_open_state" :
+                all_leagues = all_leagues.filter(leagues_start_date__date__lte=today_date, leagues_end_date__date__gte=today_date, is_complete=False).order_by("state")
+            elif filter_by == "registration_open_country" :
+                all_leagues = all_leagues.filter(leagues_start_date__date__lte=today_date, leagues_end_date__date__gte=today_date, is_complete=False).order_by("country")
+            
+            else:
+                all_leagues = all_leagues
+            leagues = all_leagues.values('id','uuid','secret_key','name','location','leagues_start_date','leagues_end_date',
+                               'registration_start_date','registration_end_date','team_type__name','team_person__name','any_rank','start_rank','end_rank',
+                               "street","city","state","postal_code","country","complete_address","latitude","longitude","image","others_fees", "league_type","registration_fee")
+            inditour_data = []
+                       
+            get_user = check_user.first()
+            get_player = Player.objects.filter(player=get_user).first()
+            team_list = list(get_player.team.all().values_list("id", flat=True))
+            if get_user.is_player:
+                individual_match =  Leagues.objects.filter(is_created=True).filter(play_type = "Individual Match Play")
+                # individual_match_values = individual_match.values('id','uuid','secret_key','name','location','leagues_start_date','leagues_end_date',
+                #                'registration_start_date','registration_end_date','team_type__name','team_person__name',
+                #                "street","city","state","postal_code","country","complete_address","latitude","longitude","image","others_fees", "league_type","registration_fee","registered_team")
+               
+                # print(team_list)
+                
+                for tour in individual_match:
+                    team_list2 = list(tour.registered_team.all().values_list("id", flat=True))
+                    for team_id in team_list2:
+                        if team_id in team_list:
+                            tour_data = {
+                                'id': tour.id,
+                                'uuid': tour.uuid,
+                                'secret_key': tour.secret_key,
+                                'name': tour.name,
+                                'location': tour.location,
+                                'leagues_start_date': tour.leagues_start_date,
+                                'leagues_end_date': tour.leagues_end_date,
+                                'registration_start_date': tour.registration_start_date,
+                                'registration_end_date': tour.registration_end_date,
+                                'team_type__name': tour.team_type.name,
+                                'team_person__name': tour.team_person.name,
+                                "street": tour.street,
+                                "city": tour.city,
+                                "state": tour.state,
+                                "postal_code": tour.postal_code,
+                                "country": tour.country,
+                                "complete_address": tour.complete_address,
+                                "latitude": tour.latitude,
+                                "longitude": tour.longitude,
+                                # "image": tour.image,
+                                "others_fees": tour.others_fees,
+                                "league_type": tour.league_type,
+                                "registration_fee": tour.registration_fee,
+                                
+                            }
+                            if tour.image:
+                                tour_data["image"] = tour.image
+                            else:
+                                tour_data["image"] = None
+                            registered_team = tour.registered_team.all().values_list("id", flat=True)
+                            team1_id = registered_team[0]
+                            players = Player.objects.filter(team__id=team1_id)
+                            team1_players = []
+                            for player in players:
+                                player_name = f"{player.player.first_name} {player.player.last_name}"
+                                team1_players.append(player_name)
+                            tour_data["team_1_players"] = team1_players
+                            team2_id = registered_team[1]
+                            players = Player.objects.filter(team__id=team2_id)
+                            team2_players = []
+                            for player in players:
+                                player_name = f"{player.player.first_name} {player.player.last_name}"
+                                team2_players.append(player_name)
+                            tour_data["team_2_players"] = team2_players
+                            inditour_data.append(tour_data)
+                        else:
+                            pass
+                           
+            
+            sorted_data = sorted(inditour_data, key=lambda x: x['id'], reverse=True)
+
+            # Initialize an empty list to store unique dictionaries
+            unique_dicts = []
+
+            # Iterate over the sorted list and remove duplicates
+            prev_id = None
+            for d in sorted_data:
+                if d['id'] != prev_id:
+                    unique_dicts.append(d)
+                    prev_id = d['id']
+            
+            leagues = list(leagues) + unique_dicts
+            
+            
+            output = []
+            grouped_data = {}
+            for item in list(leagues):
+                item["is_reg_diable"] = True
+                match_ = Tournament.objects.filter(leagues_id=item["id"]).values()
+                if match_.exists():
+                    item["is_reg_diable"] = False
+                le = Leagues.objects.filter(id=item["id"],  ).first()
+                reg_team =le.registered_team.all().count()
+                max_team = le.max_number_team
+                if max_team <= reg_team:
+                    item["is_reg_diable"] = False
+                key = item['name']
+                if key not in grouped_data:
+                    grouped_data[key] = {
+                                        'name': item['name'], 
+                                        'lat':item['latitude'], 
+                                        'long':item["longitude"],
+                                        'registration_start_date':item["registration_start_date"],
+                                        'registration_end_date':item["registration_end_date"],
+                                        'leagues_start_date':item["leagues_start_date"],
+                                        'leagues_end_date':item["leagues_end_date"],
+                                        'location':item["location"],
+                                        'image':item["image"],
+                                        'type': [item['team_type__name']], 
+                                        'data': [item]
+                                        }
+                else:
+                    grouped_data[key]['type'].append(item['team_type__name'])
+                    grouped_data[key]['data'].append(item)
+
+            # Building the final output
+            for key, value in grouped_data.items():
+                output.append(value)
+
+            # print(output)
+            leagues = output 
+            for item in leagues:
+                item["data"] = sorted(item["data"], key=lambda x: x["id"], reverse=True)
+
+            # Sort the main list based on the 'id' of the first item in the 'data' list
+            leagues_sorted = sorted(leagues, key=lambda x: x["data"][0]["id"], reverse=True)                  
+            data["status"], data['data'], data["message"] = status.HTTP_200_OK, leagues_sorted,"Data found"
+        else:
+            data["status"], data['data'], data["message"] = status.HTTP_404_NOT_FOUND, "","User not found."
+    except Exception as e :
+        data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
+    return Response(data)
+
+
+################ New modified ###################
+
+@api_view(["GET"])
+def profile_stats_match_history(request):
+    # try:
         data = {'status':'', 'message':''}
         user_uuid = request.GET.get('user_uuid')
         user_secret_key = request.GET.get('user_secret_key')
@@ -7882,12 +7492,13 @@ def profile_stats_match_history(request):
         tournament_stats = {} 
         match_stats = {}
         matches = []
-        if check_user:
+
+        if check_user.exists():
             get_user = check_user.first()
                        
             user_info["rank"] = get_user.rank
             try:
-                image = get_user.image.url
+                image = get_user.image.url if get_user.image not in ["null",None,"", " "] else None
             except:
                 image = None
             
@@ -7896,14 +7507,17 @@ def profile_stats_match_history(request):
             user_info["is_rank"] = get_user.is_rank
             user_info["profile_image"] = image
             check_player = Player.objects.filter(player__id=get_user.id)
+            
             if check_player.exists():
                 total_league = 0
                 win_league = 0
                 get_player = check_player.first()
                 team_ids = list(get_player.team.values_list('id', flat=True))
+                
                 if len(team_ids) > 0:
                     total_played_matches = 0
                     win_match = 0 
+                    
                     for team_id in team_ids:                        
                         lea = Leagues.objects.filter(registered_team__in=[team_id], is_complete=True)
                         total_league += lea.count()
@@ -7914,39 +7528,39 @@ def profile_stats_match_history(request):
                         win_match += win_check_match
                         win_league += win_leagues_count                    
                        
-                        match = Tournament.objects.filter(Q(team1_id=team_id) | Q(team2_id=team_id)).order_by("playing_date_time")
-                        if match:
-                            serializer = TournamentSerializer(match, many=True)
-                            matches.append(serializer.data)
+                        matches.extend(Tournament.objects.filter(Q(team1_id=team_id) | Q(team2_id=team_id)).filter(is_completed=True).order_by("playing_date_time"))
+                            
+                    paginator = PageNumberPagination()
+                    paginator.page_size = 5  # Set the page size to 20
+                    result_page = paginator.paginate_queryset(matches, request)
+                    serializer = TournamentSerializer(result_page, many=True, context={'request': request})
+                    
+                    paginated_response = paginator.get_paginated_response(serializer.data)
+
+                    for match in paginated_response.data["results"]:
+                        match["team1"]["player_images"] = [
+                            player_image if player_image else None 
+                            for player_image in Player.objects.filter(team__id=match["team1"]["id"]).values_list("player__image", flat=True)
+                        ]
+                        
+                        match["team2"]["player_images"] = [
+                            player_image if player_image else None 
+                            for player_image in Player.objects.filter(team__id=match["team2"]["id"]).values_list("player__image", flat=True)
+                        ]
+                        match["team1"]["player_names"] = [
+                            player_name for player_name in Player.objects.filter(team__id=match["team1"]["id"]).values_list("player_full_name", flat=True)
+                        ]
+                        match["team2"]["player_names"] = [
+                            player_name for player_name in Player.objects.filter(team__id=match["team2"]["id"]).values_list("player_full_name", flat=True)
+                        ]
+                        print(match["winner_team_id"])
+                        match["is_win"] = match["winner_team_id"] in team_ids
 
                     tournament_stats["total_completed_turnament"] = total_league
                     tournament_stats["total_win_turnament"] = win_league
                     match_stats["total_completed_match"] = total_played_matches
                     match_stats["total_win_match"] = win_match
-                    for match in matches:
-                        for mat in match:
-                            if mat["team1"]["id"] in [team_id for team_id in team_ids]:
-                                mat["team1"]["name"] += " (your team)"
-                                mat["team2"]["name"] += " (opponent)"
-                                mat["team1"]["player_images"] = [
-                                        player_image if player_image else None 
-                                        for player_image in Player.objects.filter(team__id=mat["team1"]["id"]).values_list("player__image", flat=True)
-                                    ]
-                                mat["team2"]["player_images"] = [
-                                        player_image if player_image else None 
-                                        for player_image in Player.objects.filter(team__id=mat["team2"]["id"]).values_list("player__image", flat=True)
-                                    ]
-                            if mat["team2"]["id"] in [team_id for team_id in team_ids]: 
-                                mat["team2"]["name"] += " (your team)"
-                                mat["team1"]["name"] += " (opponent)"
-                                mat["team2"]["player_images"] = [
-                                        player_image if player_image else None 
-                                        for player_image in Player.objects.filter(team__id=mat["team2"]["id"]).values_list("player__image", flat=True)
-                                    ]
-                                mat["team1"]["player_images"] = [
-                                        player_image if player_image else None 
-                                        for player_image in Player.objects.filter(team__id=mat["team1"]["id"]).values_list("player__image", flat=True)
-                                    ]
+
                 else:                
                     tournament_stats["total_completed_turnament"] = 0
                     tournament_stats["total_win_turnament"] = 0
@@ -7957,21 +7571,25 @@ def profile_stats_match_history(request):
                 tournament_stats["total_win_turnament"] = 0
                 match_stats["total_completed_match"] = 0
                 match_stats["total_win_match"] = 0
+
             data['status'] = status.HTTP_200_OK
             data["user_info"] = user_info
             data["tournament_stats"] =  tournament_stats
             data["match_stats"] = match_stats
-            data["matches"] = matches
-            
-            data['message'] = "Stats and match history fetched successfully." 
+            data["matches"] = paginated_response.data["results"]
+            data["count"] = paginated_response.data["count"]
+            data["previous"] = paginated_response.data["previous"]
+            data["next"] = paginated_response.data["next"]
+            data['message'] = "Stats and match history fetched successfully."
         else:
             data['status'] = status.HTTP_404_NOT_FOUND            
             data['message'] = "User not found."
-    except Exception as e:
-        data['status'] = status.HTTP_400_BAD_REQUEST
-        data['message'] = f"{e}"
-    return Response(data)
+    # except Exception as e:
+    #     data['status'] = status.HTTP_400_BAD_REQUEST
+    #     data['message'] = str(e)
+        return Response(data)
     
+ 
 
 @api_view(("GET",))
 def get_tournament_count(request):
@@ -7981,8 +7599,7 @@ def get_tournament_count(request):
         user_secret_key = request.GET.get('user_secret_key')
        
         check_user = User.objects.filter(secret_key=user_secret_key,uuid=user_uuid)
-        today = datetime.now()
-        
+        today = datetime.now()        
         if check_user:
             get_user = check_user.first() 
             created = list(Leagues.objects.filter(created_by=get_user).values())        
@@ -7998,7 +7615,7 @@ def get_tournament_count(request):
                                     Q(created_by=get_user,leagues_end_date__gte=today,is_complete=False) | 
                                     Q(add_organizer__in=[get_user.id], leagues_end_date__gte=today, is_complete=False)
                                 ).values())
-                saved = list(SaveLeagues.objects.filter(created_by=get_user).values())  
+                saved = list(SaveLeagues.objects.filter(created_by=get_user,ch_league__is_complete=False).values())  
                 completed = list(Leagues.objects.filter(
                                     Q(registered_team__in=player_teams, is_complete=True) |
                                     Q(add_organizer__in=[get_user.id], is_complete=True) |
@@ -8022,35 +7639,6 @@ def get_tournament_count(request):
         data['status'], data['data'], data['message'] = status.HTTP_400_BAD_REQUEST, [], f"{e}"
     return Response(data)
 
-class UserSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = ["id","uuid","secret_key","first_name","last_name"]
-
-class LeagueSerializer(serializers.ModelSerializer):
-    leagues_team_type = serializers.SerializerMethodField()
-    leagues_pesrson_type = serializers.SerializerMethodField()
-    registered_team = TeamSerializer(many=True, read_only=True)
-    leagues_createdUserBy = serializers.SerializerMethodField()
-    add_organizer = UserSerializer(many=True, read_only=True)
-    class Meta:
-        model = Leagues
-        fields = ["id","uuid","secret_key","name","registration_start_date","registration_end_date","leagues_start_date","leagues_end_date",
-                  "image","play_type","leagues_team_type","leagues_pesrson_type","league_type","location","latitude","longitude","street","city","state","postal_code",
-                  "country","max_number_team","registered_team","add_organizer","leagues_createdUserBy"]
-        
-    def get_leagues_team_type(self, obj):
-        team_type = obj.team_type.name 
-        return team_type
-    
-    def get_leagues_pesrson_type(self, obj):
-        team_person = obj.team_person.name 
-        return team_person
-
-    def get_leagues_createdUserBy(self, obj):
-        created_by_user = f"{obj.created_by.first_name} {obj.created_by.last_name}"
-        return created_by_user
-
 
 @api_view(("GET",))
 def get_leagues_list(request):
@@ -8062,8 +7650,8 @@ def get_leagues_list(request):
         if check_user:
             get_user = check_user.first()
             today_date = datetime.now()
-            live_leagues = Leagues.objects.filter(leagues_start_date__lte=today_date, leagues_end_date__gte=today_date)
-            upcoming_leagues = Leagues.objects.filter(Q(registration_start_date__lte=today_date, registration_end_date__gte=today_date) | Q(registration_start_date__gte=today_date))
+            live_leagues = Leagues.objects.filter(leagues_start_date__date__lte=today_date, leagues_end_date__date__gte=today_date)
+            upcoming_leagues = Leagues.objects.filter(Q(registration_start_date__date__lte=today_date, registration_end_date__date__gte=today_date) | Q(registration_start_date__date__gte=today_date) | Q(registration_end_date__date__lte=today_date, leagues_start_date__date__gte=today_date))
             serializer_live_leagues = LeagueSerializer(live_leagues, many=True)
             serializer_upcoming_leagues = LeagueSerializer(upcoming_leagues, many=True)
             data_list = serializer_live_leagues.data + serializer_upcoming_leagues.data
@@ -8112,32 +7700,35 @@ def my_player_list(request):
 
             #cache implementation
             if not search_text and not ordering:
-                if cache.get('player_list'):
+                players_list = f'{get_user.id}_player_list'
+                if cache.get(players_list):
                     print('from cache........')
-                    players = cache.get('player_list')
+                    players = cache.get(players_list)
                 else:
                     print('from db.............')
                     players = my_players
-                    cache.set('player_list', players)
+                    cache.set(players_list, players)
             elif search_text and not ordering:
-                if cache.get(search_text):
+                search_list = f'{get_user.id}_{search_text}'
+                if cache.get(search_list):
                     print('from cache........')
-                    players = cache.get(search_text)
+                    players = cache.get(search_list)
                 else:
                     print('from db.............')
                     players = my_players
-                    cache.set(search_text, players)
+                    cache.set(search_list, players)
 
             elif not search_text and ordering:
-                if cache.get(ordering):
+                ordered_list = f'{get_user.id}_{ordering}'
+                if cache.get(ordered_list):
                     print('from cache........')
-                    players = cache.get(ordering)
+                    players = cache.get(ordered_list)
                 else:
                     print('from db.............')
                     players = my_players
-                    cache.set(ordering, players)
+                    cache.set(ordered_list, players)
             else:
-                cache_key = f"player_list_{user_uuid}_{search_text}_{ordering}"
+                cache_key = f'player_list_{get_user.id}_{search_text}_{ordering}'
                 if cache.get(cache_key):
                     print('from cache........')
                     players = cache.get(cache_key)
@@ -8176,6 +7767,7 @@ def my_player_list(request):
 
     return Response(data)
 
+
 @api_view(("GET",))
 def my_team_list(request):
     data = {
@@ -8212,32 +7804,35 @@ def my_team_list(request):
 
             #cache implementation
             if not search_text and not ordering:
-                if cache.get('team_list'):
+                teams_list = f'{user.id}_team_list'
+                if cache.get(teams_list):
                     print('from cache........')
-                    teams = cache.get('team_list')
+                    teams = cache.get(teams_list)
                 else:
                     print('from db.............')
                     teams = teams_query
-                    cache.set('team_list', teams)
+                    cache.set(teams_list, teams)
             elif search_text and not ordering:
-                if cache.get(search_text):
+                search_list = f'{user.id}_{search_text}'
+                if cache.get(search_list):
                     print('from cache........')
-                    teams = cache.get(search_text)
+                    teams = cache.get(search_list)
                 else:
                     print('from db.............')
                     teams = teams_query
-                    cache.set(search_text, teams)
+                    cache.set(search_list, teams)
 
             elif not search_text and ordering:
-                if cache.get(ordering):
+                ordered_list = f'{user.id}_{ordering}'
+                if cache.get(ordered_list):
                     print('from cache........')
-                    teams = cache.get(ordering)
+                    teams = cache.get(ordered_list)
                 else:
                     print('from db.............')
                     teams = teams_query
-                    cache.set(ordering, teams)
+                    cache.set(ordered_list, teams)
             else:
-                cache_key = f"team_list_{user_uuid}_{search_text}_{ordering}"
+                cache_key = f'team_list_{user.id}_{search_text}_{ordering}'
                 if cache.get(cache_key):
                     print('from cache........')
                     teams = cache.get(cache_key)
@@ -8253,7 +7848,7 @@ def my_team_list(request):
                 team_rank = sum(float(player.player.rank) if player.player.rank not in ["", "null", None] else 1 for player in players) / max(len(players), 1)
                 
                 team_data = TeamListSerializer(team).data
-                player_uuid_list = [item["user_uuid"] for item in team_data["player_data"]]
+                player_id_list = [item["user_id"] for item in team_data["player_data"]]
                 team_data['team_uuid'] = team_data.pop('uuid')
                 team_data['team_secret_key'] = team_data.pop('secret_key')
                 team_data['team_name'] = team_data.pop('name')
@@ -8262,9 +7857,9 @@ def my_team_list(request):
                 team_data['is_edit'] = team.created_by_id == user.id
                 print(team_data)
                 
-                if team_data["created_by_uuid"] == user.uuid:
+                if team_data["created_by_id"] == user.id:
                     my_team.append(team_data)
-                elif user.uuid in player_uuid_list:
+                elif user.id in player_id_list:
                     my_team.append(team_data)
                     
             paginator = PageNumberPagination()
@@ -8296,4 +7891,476 @@ def my_team_list(request):
         data['message'] = str(e)
 
     return Response(data)
+
+
+@api_view(("GET",))
+def player_profile_details(request):
+    try:
+        data = {'status':'','message':''}
+        user_uuid = request.GET.get('user_uuid')
+        user_secret_key = request.GET.get('user_secret_key')
+        player_uuid = request.GET.get('player_uuid')
+        player_secret_key = request.GET.get('player_secret_key')
+        check_user = User.objects.filter(uuid=user_uuid,secret_key=user_secret_key)
+        if check_user.exists() :
+            check_player = Player.objects.filter(uuid=player_uuid,secret_key=player_secret_key)
+            if check_player:
+                player = check_player.first()
+                player_data = check_player.values("id", "player__first_name","player__last_name","player__email","player__rank","player__gender","player__phone","player__image","player__bio")
+                check_ambassador = AmbassadorsDetails.objects.filter(ambassador=player.player)
+                if check_ambassador:
+                    follower_count = check_ambassador.first().follower.count()
+                    following_count = check_ambassador.first().following.count()
+                    is_follow = True if check_user.first() in check_ambassador.first().follower.all() else False
+                    posts = AmbassadorsPost.objects.filter(created_by=player.player)
+                    post_count = posts.count()
+                    post_data = posts.values()
+                else:
+                    is_follow = False
+                    follower_count = 0
+                    following_count = 0
+                    post_count = 0
+                    post_data = []
+                ambassador_data = {"follower":follower_count,
+                                  "following":following_count,
+                                  "is_follow":is_follow,
+                                  "posts":post_count,
+                                  "post_data":post_data}
+                data['status'] = status.HTTP_200_OK
+                data['player_data'] = player_data
+                data['ambassador_data'] = ambassador_data
+                data['message'] = f'Data fetched successfully.'
+            else:
+                data['status'] = status.HTTP_404_NOT_FOUND
+                data['player_data'] = []
+                data['ambassador_data'] = []
+                data['message'] = f'User is not a player'
+        else:
+            data['status'] = status.HTTP_404_NOT_FOUND
+            data['player_data'] = []
+            data['ambassador_data'] = []
+            data['message'] = f'User not found'
+    except Exception as e:
+        data['status'] = status.HTTP_400_BAD_REQUEST
+        data['player_data'] = []
+        data['ambassador_data'] = []
+        data['message'] = f'{str(e)}'
+    return Response(data)
+
+
+@api_view(("GET",))
+def player_team_details(request):
+    try:
+        data = {'status':'','message':''}
+        user_uuid = request.GET.get('user_uuid')
+        user_secret_key = request.GET.get('user_secret_key')
+        player_uuid = request.GET.get('player_uuid')
+        player_secret_key = request.GET.get('player_secret_key')
+        check_user = User.objects.filter(uuid=user_uuid,secret_key=user_secret_key)
+        if check_user.exists() :
+            user = check_user.first()
+            check_player = Player.objects.filter(uuid=player_uuid,secret_key=player_secret_key)
+            if check_player:
+                player = check_player.first()
+                team_details = player.team.all()
+                paginator = PageNumberPagination()
+                paginator.page_size = 20
+                paginated_teams = paginator.paginate_queryset(team_details, request)
+                serializer  = TeamListSerializer(paginated_teams, many=True)
+                main_data = serializer.data
+                for team_data in main_data:
+                    team_data['is_edit'] = team_data['created_by_uuid'] == user.uuid
+                paginated_response = paginator.get_paginated_response(main_data)
+
+                data['status'] = status.HTTP_200_OK
+                data["count"] = paginated_response.data["count"]
+                data["previous"] = paginated_response.data["previous"]
+                data["next"] = paginated_response.data["next"]
+                data['team_data'] = paginated_response.data["results"]
+                data['message'] = f'Team details fetched successfully.'
+            else:
+                data['status'] = status.HTTP_404_NOT_FOUND
+                data["count"] = 0
+                data["previous"] = None
+                data["next"] = None
+                data['team_data'] = []
+                data['message'] = f'User is not a player.' 
+        else:
+            data['status'] = status.HTTP_404_NOT_FOUND
+            data["count"] = 0
+            data["previous"] = None
+            data["next"] = None
+            data['team_data'] = []
+            data['message'] = f'User not found.'
+    except Exception as e:
+        data['status'] = status.HTTP_400_BAD_REQUEST
+        data["count"] = 0
+        data["previous"] = None
+        data["next"] = None
+        data['team_data'] = []
+        data['message'] = f'{str(e)}'
+    return Response(data)  
+
+from datetime import timedelta
+from django.db.models.functions import TruncMonth
+from django.db.models import Case, When, IntegerField
+from dateutil.relativedelta import relativedelta
+
+
+@api_view(("GET",))
+def player_match_statistics(request):
+    try:
+        data = {'status': '', 'message': ''}
+        user_uuid = request.GET.get('user_uuid')
+        user_secret_key = request.GET.get('user_secret_key')
+        player_uuid = request.GET.get('player_uuid')
+        player_secret_key = request.GET.get('player_secret_key')
+
+        check_user = User.objects.filter(uuid=user_uuid, secret_key=user_secret_key)
+        if check_user.exists():
+            check_player = Player.objects.filter(uuid=player_uuid, secret_key=player_secret_key)
+            if check_player:
+                player = check_player.first()
+                total_played_matches = 0
+                win_match = 0
+                matches = []
+                team_ids = list(player.team.values_list('id', flat=True))
+
+                today = timezone.now().date()
+                twelve_months_ago = today - timedelta(days=365)
+                if len(team_ids) > 0:
+                    for team_id in team_ids:
+                        check_match = Tournament.objects.filter(
+                            Q(team1_id=team_id, is_completed=True) | Q(team2_id=team_id, is_completed=True))
+                        win_check_match = check_match.filter(winner_team_id=team_id).count()
+                        total_played_matches += check_match.count()
+                        win_match += win_check_match
+                        match = Tournament.objects.filter(
+                                    Q(team1=team_id) | Q(team2=team_id),
+                                    is_completed=True,
+                                    playing_date_time__date__gte=twelve_months_ago,
+                                    playing_date_time__date__lte=today
+                                ).annotate(
+                                    month=TruncMonth('playing_date_time')
+                                ).values(
+                                    'month'
+                                ).annotate(
+                                    matches_played=Count('id'),
+                                    wins=Count(Case(
+                                        When(winner_team=team_id, then=1),
+                                        output_field=IntegerField()
+                                    )),
+                                ).order_by('month')
+                        matches.extend(match)
+                lost_match = total_played_matches - win_match
+
+                match_count = {"total_matches": total_played_matches,
+                            "wim_matches": win_match,
+                            "lost_matches": lost_match
+                            }
+
+                months = []
+                for i in range(12):
+                    month = today - relativedelta(months=i)
+                    first_day_of_month = month.replace(day=1)
+                    months.append(first_day_of_month.strftime('%Y-%m'))
+                months = sorted(list(set(months)))
+                match_data = {month: {'matches_played': 0, 'wins': 0} for month in months}
+
+                for mat in matches:
+                    month_str = mat['month'].strftime('%Y-%m')
+                    match_data[month_str]['matches_played'] += mat['matches_played']
+                    match_data[month_str]['wins'] += mat['wins']
+
+                sorted_months = sorted(months) 
+                matches_played = [match_data[month]['matches_played'] for month in sorted_months]
+                wins = [match_data[month]['wins'] for month in sorted_months]
+
+                data_set = {"month": sorted_months,
+                            "match_played": matches_played,
+                            "win": wins
+                            }
+                data['status'] = status.HTTP_200_OK
+                data['match_count'] = match_count
+                data['data_set'] = data_set
+                data['message'] = 'Data fetched successfully.'
+            else:
+                data['status'] = status.HTTP_200_OK
+                data['match_count'] = []
+                data['data_set'] = []
+                data['message'] = 'User is not a player.'
+        else:
+            data['status'] = status.HTTP_200_OK
+            data['match_count'] = []
+            data['data_set'] = []
+            data['message'] = 'User not found.'
+    except Exception as e:
+        data['status'] = status.HTTP_400_BAD_REQUEST
+        data['match_count'] = []
+        data['data_set'] = []
+        data['message'] = f'{str(e)}'
+    return Response(data)
+
+
+@api_view(("GET",))
+def team_profile_details(request):
+    try:
+        data = {'status':'','message':''}
+        user_uuid = request.GET.get('user_uuid')
+        user_secret_key = request.GET.get('user_secret_key')
+        t_uuid = request.GET.get('t_uuid')
+        t_secret_key = request.GET.get('t_secret_key')
+        check_user = User.objects.filter(uuid=user_uuid,secret_key=user_secret_key)
+        if check_user.exists() :
+            user = check_user.first()
+            check_team = Team.objects.filter(uuid=t_uuid,secret_key=t_secret_key)
+            if check_team.exists() :
+                team = check_team.first()
+                serializer  = TeamListSerializer(team)
+                team_data = serializer.data
+                team_data['is_edit'] = team_data['created_by_uuid'] == str(user.uuid)
+                data['status'] = status.HTTP_200_OK
+                data['team_data'] = team_data
+                data['message'] = f'Team details fetched successfully.'
+            else:
+                data['status'] = status.HTTP_404_NOT_FOUND
+                data['team_data'] = []
+                data['message'] = f'Team not found.' 
+        else:
+            data['status'] = status.HTTP_404_NOT_FOUND
+            data['team_data'] = []
+            data['message'] = f'User not found.'
+
+    except Exception as e:
+        data['status'] = status.HTTP_400_BAD_REQUEST
+        data['team_data'] = []
+        data['message'] = f'{str(e)}'
+    return Response(data)
+
+
+@api_view(("GET",))
+def team_statistics(request):
+    try:
+        data = {'status':'','message':''}
+        user_uuid = request.GET.get('user_uuid')
+        user_secret_key = request.GET.get('user_secret_key')
+        t_uuid = request.GET.get('t_uuid')
+        t_secret_key = request.GET.get('t_secret_key')
+        check_user = User.objects.filter(uuid=user_uuid,secret_key=user_secret_key)
+        if check_user.exists() :
+            check_team = Team.objects.filter(uuid=t_uuid,secret_key=t_secret_key)
+            if check_team.exists() :
+                team = check_team.first()
+                today = timezone.now().date()
+                twelve_months_ago = today - timedelta(days=365)
+                check_match = Tournament.objects.filter(
+                            Q(team1_id=team.id, is_completed=True) | Q(team2_id=team.id, is_completed=True))
+                win_check_match = check_match.filter(winner_team_id=team.id).count()
+                total_played_matches = check_match.count()
+                win_match = win_check_match
+                matches = Tournament.objects.filter(
+                            Q(team1=team.id) | Q(team2=team.id),
+                            is_completed=True,
+                            playing_date_time__date__gte=twelve_months_ago,
+                            playing_date_time__date__lte=today
+                        ).annotate(
+                            month=TruncMonth('playing_date_time')
+                        ).values(
+                            'month'
+                        ).annotate(
+                            matches_played=Count('id'),
+                            wins=Count(Case(
+                                When(winner_team=team.id, then=1),
+                                output_field=IntegerField()
+                            )),
+                        ).order_by('month')
+                lost_match = total_played_matches - win_match
+
+                match_count = {"total_matches": total_played_matches,
+                            "wim_matches": win_match,
+                            "lost_matches": lost_match
+                            }
+                months = []
+                for i in range(12):
+                    month = today - relativedelta(months=i)
+                    first_day_of_month = month.replace(day=1)
+                    months.append(first_day_of_month.strftime('%Y-%m'))
+                months = sorted(list(set(months)))
+                match_data = {month: {'matches_played': 0, 'wins': 0} for month in months}
+
+                for mat in matches:
+                    month_str = mat['month'].strftime('%Y-%m')
+                    match_data[month_str]['matches_played'] += mat['matches_played']
+                    match_data[month_str]['wins'] += mat['wins']
+
+                sorted_months = sorted(months) 
+                matches_played = [match_data[month]['matches_played'] for month in sorted_months]
+                wins = [match_data[month]['wins'] for month in sorted_months]
+
+                data_set = {"month": sorted_months,
+                            "match_played": matches_played,
+                            "win": wins
+                            }
+                data['status'] = status.HTTP_200_OK
+                data['match_count'] = match_count
+                data['data_set'] = data_set
+                data['message'] = 'Data fetched successfully.'
+            else:
+                data['status'] = status.HTTP_200_OK
+                data['match_count'] = []
+                data['data_set'] = []
+                data['message'] = 'Data fetched successfully.'
+        else:
+            data['status'] = status.HTTP_200_OK
+            data['match_count'] = []
+            data['data_set'] = []
+            data['message'] = 'Data fetched successfully.'
+
+    except Exception as e:
+        data['status'] = status.HTTP_400_BAD_REQUEST
+        data['team_data'] = []
+        data['message'] = f'{str(e)}'
+    return Response(data)
+
+
+@api_view(("GET",))
+def team_match_history(request):
+    try:
+        data = {'status':'', 'message':''}
+        user_uuid = request.GET.get('user_uuid')
+        user_secret_key = request.GET.get('user_secret_key')
+        t_uuid = request.GET.get('t_uuid')
+        t_secret_key = request.GET.get('t_secret_key')
+        check_user = User.objects.filter(uuid=user_uuid,secret_key=user_secret_key)
+        matches = []
+        if check_user.exists() :
+            check_team = Team.objects.filter(uuid=t_uuid,secret_key=t_secret_key)
+            if check_team.exists() :
+                team = check_team.first()
+                match = Tournament.objects.filter(Q(team1_id=team.id) | Q(team2_id=team.id)).filter(is_completed=True).order_by("playing_date_time")
+                if match:
+                    serializer = TournamentSerializer(match, many=True)
+                    matches.append(serializer.data)
+                for match in matches:
+                    for mat in match:                    
+                        mat["team1"]["player_images"] = [
+                                player_image if player_image else None 
+                                for player_image in Player.objects.filter(team__id=mat["team1"]["id"]).values_list("player__image", flat=True)
+                            ]
+                        mat["team2"]["player_images"] = [
+                                player_image if player_image else None 
+                                for player_image in Player.objects.filter(team__id=mat["team2"]["id"]).values_list("player__image", flat=True)
+                            ]
+                        mat["team1"]["player_names"] = [
+                                player_name for player_name in Player.objects.filter(team__id=mat["team1"]["id"]).values_list("player_full_name", flat=True)
+                            ]
+                        mat["team2"]["player_names"] = [
+                                player_name for player_name in Player.objects.filter(team__id=mat["team2"]["id"]).values_list("player_full_name", flat=True)
+                            ]    
+                data['status'] = status.HTTP_200_OK
+                data['message'] = f"Data fetched successfully."  
+                data['data'] = matches    
+            else:
+                data['status'] = status.HTTP_404_NOT_FOUND
+                data['message'] = f"Team not found."  
+                data['data'] = []                      
+        else:
+            data['status'] = status.HTTP_404_NOT_FOUND
+            data['message'] = f"User not found."  
+            data['data'] = []
+    except Exception as e:
+        data['status'] = status.HTTP_400_BAD_REQUEST
+        data['message'] = f"{e}"
+        data['data'] = []
+    return Response(data)    
+
+
+@api_view(("GET",))
+def team_tournament_history(request):
+    try:
+        data = {'status':'', 'message':''}
+        user_uuid = request.GET.get('user_uuid')
+        user_secret_key = request.GET.get('user_secret_key')
+        t_uuid = request.GET.get('t_uuid')
+        t_secret_key = request.GET.get('t_secret_key')
+        check_user = User.objects.filter(uuid=user_uuid,secret_key=user_secret_key)
+        matches = []
+        if check_user.exists() :
+            check_team = Team.objects.filter(uuid=t_uuid,secret_key=t_secret_key)
+            if check_team.exists() :
+                team = check_team.first()
+                check_leagues = Leagues.objects.filter(registered_team__in=[team.id], is_complete=True)
+                serializer = LeagueListSerializer(check_leagues, many=True)
+                league_data = serializer.data
+                for item in league_data:
+                    league_id = item.get("id")
+                    total_matches = Tournament.objects.filter(leagues_id=league_id)
+                    team_matches = total_matches.filter(Q(team1_id=team.id) | Q(team2_id=team.id))
+                    team_win_matches = team_matches.filter(winner_team_id=team.id)
+                    team_lost_matches = team_matches.count() - team_win_matches.count()
+                    item["total_matches"] = total_matches.count()
+                    item["team_matches"] = team_matches.count()
+                    item["team_win_matches"] = team_win_matches.count()
+                    item["team_lost_matches"] = team_lost_matches
+                    item["is_winner"] = item["winner_team"] == team.name
+
+                data['status'] = status.HTTP_200_OK
+                data['message'] = f"Data fetched successfully."  
+                data['data'] = league_data   
+            else:
+                data['status'] = status.HTTP_404_NOT_FOUND
+                data['message'] = f"Team not found."  
+                data['data'] = []                      
+        else:
+            data['status'] = status.HTTP_404_NOT_FOUND
+            data['message'] = f"User not found."  
+            data['data'] = []
+    except Exception as e:
+        data['status'] = status.HTTP_400_BAD_REQUEST
+        data['message'] = f"{e}"
+        data['data'] = []
+    return Response(data)
+
+@api_view(("GET",))
+def get_final_match_details(request):
+        data = {'status':'', 'message':'', 'data':[]}
+    # try:
+        user_uuid = request.GET.get('user_uuid')
+        user_secret_key = request.GET.get('user_secret_key')
+        league_uuid = request.GET.get('league_uuid')
+        league_secret_key = request.GET.get('league_secret_key')
+        check_user = User.objects.filter(uuid=user_uuid, secret_key=user_secret_key)
+        check_league = Leagues.objects.filter(uuid=league_uuid, secret_key=league_secret_key)
+        if check_user and check_league:
+            league = check_league.first()
+            league_type = league.play_type
+            tournaments = Tournament.objects.filter(leagues=league)
+            if tournaments:
+                if league_type == 'Group Stage' or league_type == 'Single Elimination':
+                    final_match = tournaments.filter(match_type='Final').first()
+                 
+                    serializer = TournamentSerializer(final_match)
+                    data['status'] = status.HTTP_200_OK
+                    data['message'] = 'Final match data fetched successfully.'
+                    data['data'] = serializer.data
+                else:
+                    data['status'] = status.HTTP_200_OK
+                    data['message'] = 'No final match, check tournament details.'
+                    data['data'] = serializer.data
+            else:
+                data['status'] = status.HTTP_404_NOT_FOUND
+                data['message'] = 'Matches have not started yet.'
+                data['data'] = []
+        else:
+            data['status'] = status.HTTP_404_NOT_FOUND
+            data['message'] = 'User or League not found.'
+            data['data'] = []
+    # except Exception as e:
+    #     data['status'] = status.HTTP_400_BAD_REQUEST
+    #     data['message'] = f'{str(e)}'
+    #     data['data'] = []
+        return Response(data)
+                
+
+
 

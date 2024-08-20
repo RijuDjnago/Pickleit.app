@@ -13,7 +13,7 @@ import jwt, re, base64, uuid
 from datetime import datetime, date, timedelta
 from apps.user.models import User, Role
 from apps.team.models import *
-from apps.accessories.models import *
+from apps.pickleitcollection.models import *
 from apps.user.helpers import GenerateKey
 from django.contrib.auth.hashers import make_password
 from rest_framework import serializers
@@ -21,7 +21,7 @@ from django.conf import settings
 protocol = settings.PROTOCALL
 from apps.chat.models import *
 from apps.team.views import notify_edited_player
-from apps.accessories.views import *
+from apps.pickleitcollection.views import *
 
 
 
@@ -2533,4 +2533,46 @@ def edit_profile_(request):
         data['status'] = status.HTTP_400_BAD_REQUEST
         data["data"] = []
         data['message'] = str(e)
+    return Response(data)
+
+
+@api_view(("GET",))
+def check_update_status(request):
+    data = {"status":"","message":"", "update":True}
+    user_uuid = request.GET.get("user_uuid")
+    user_secret_key = request.GET.get("user_secret_key")
+    check_user = User.objects.filter(uuid=user_uuid, secret_key=user_secret_key) 
+    if check_user:
+        user_id = check_user.first().id
+        latest_app_version = AppVersion.objects.latest('release_date')
+        latest_version_user_list = list(latest_app_version.updated_users.all().values_list("id", flat=True))
+        if int(user_id) in latest_version_user_list:
+            data["update"] = False
+        else:
+            data["update"] = True
+        data["status"] = status.HTTP_200_OK
+        data["message"] = "Update status fetched successfully."
+    else:
+        data["status"] = status.HTTP_404_NOT_FOUND
+        data["message"] = "User not found."
+    return Response(data)
+
+
+@api_view(('POST',))
+def update_version(request):
+    data = {"status":"","message":""}
+    user_uuid = request.GET.get("user_uuid")
+    user_secret_key = request.GET.get("user_secret_key")
+    update_status = request.data.get("status")
+    check_user = User.objects.filter(uuid=user_uuid, secret_key=user_secret_key)
+    if check_user:
+        get_user = check_user.first()
+        if update_status == "True":
+            latest_app_version = AppVersion.objects.latest('release_date')
+            latest_app_version.updated_users.add(get_user)
+        data["status"] = status.HTTP_200_OK
+        data["message"] = "Version updated succesfully."
+    else:
+        data["status"] = status.HTTP_404_NOT_FOUND
+        data["message"] = "User not found."
     return Response(data)

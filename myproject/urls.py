@@ -39,9 +39,10 @@ urlpatterns = [
     path('api_list/', views.api_list,name="api_list"),
     path('user/', include('apps.user.urls')),
     path('team/', include('apps.team.urls')),
-    path('accessories/', include('apps.accessories.urls')),
+    path('accessories/', include('apps.pickleitcollection.urls')),
     path('chat/', include('apps.chat.urls')),
     path('admin/', include('apps.admin_side.urls')),
+    path('accessories/', include('apps.store.urls')),
 ]
 
 
