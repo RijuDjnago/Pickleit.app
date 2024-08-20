@@ -12,23 +12,36 @@ urlpatterns = [
     #new
     path('2bdfe77479df1fc79e49e2939ce0a0a8018d4d94f13d7288d4ed79f4b2a96cf8/', views.all_map_data_new, name="all_map_data"),
 
+    # Team Type & Person Type
     path('1963b18359229186f2817624c25bb11c613f9e30b9d2f6f18982064ae2e78d9e/', views.leagues_teamType, name="leagues_teamType"),
     path('8fc896dbad658501526b8f3eca6a4fbba95ea86269d96cd3a71d8d8b9575b1c2/', views.leagues_pesrsonType, name="leagues_pesrsonType"),
-    # create player
-
+    
+    # Player
     path('30ddee1c070d318b5054521aaaaf3c9a03d938d90c9bdeacadeecdd76cb99554/', views.create_player, name="create_player"),
     path('6223737bd87561d5efc114403fd56771be64b41af5c5c18dda208fb1ecd851e5/', views.view_player, name="view_player"),
     path('a04269bd4564a6f973d1a959616a037242d4401b31ceafe8236e7fdaf13d2812/', views.list_player, name="list_player"),
     path('6a502a80130911930674f4a9cede39a383f366a684fdf667d26eed49c048e321/', views.email_send_for_create_user, name="email_send_for_create_user"),
     path('08d664c5b48389500adc8c6f8d5f8aa2150ce8eec29fbab7b9630025cdaaa055/', views.edit_player, name="edit_player"), #new add
     path('0951b1ba7bfb43562d3ce1f377ed776bffce89092cc63baa75115723bfde4592/', views.delete_player, name="create_player"), #new add
+    path('c6d9792e19b52f2ffb961097f6385e430f668b1dccf46514f900cae955757390/', views.player_list_using_pagination, name="player_list_using_pagination"),
+    path('05bb45dd8fd8292f74bdbd04162360d81dfe6a99db3f4dd55c495ac8c474960f/', views.my_player_list, name="my_player_list"),
+    path('65070ddb7cef7ff13931e8f3202c93975737469c1e43dc76d6f9ce53bd8d1460/', views.player_profile_details, name="player_profile_details"),
+    path('a70163a6be1c608c5975eaf63d680cff6e2dedf945d17871a421500b5cf1f926/', views.player_team_details, name="player_team_details"),
+    path('8bfc54fa62aded9ebe0417313eb7e8d3de990e7775ab8de2551ebe8db4f1928f/', views.player_match_statistics, name='player_match_statistics'),
     
+    # Team
     path('6b0bfb8e6263728c6b3d3f9224fd5f6f968d7c6d1b02fb4a84503f9c384bbdd8/', views.create_team, name="create_team"),
     path('a055a65f599d3d65289630efd48729d4376b3664b13b5d58ed1d18f664322af2/', views.team_list, name="team_list"),
     path('b7c8cb48779da0733ab972fd456a7bc35999b2732258c671a4c00cc9e5e111ab/', views.edit_team, name="edit_team"),
     path('29479d6589f748706e3fe02759c14de16aba6335ecc51889c4c3ff89d7c35c9d/', views.team_view, name="team_view"),
     path('cf473ee6b572066a6fab74e03ae862a8068649b12524dcef808a647078fbe887/', views.delete_team, name="delete_team"),
-    # path('5bdbe2ba306a8b3aa5689199f2da856d7cc6c58ca807297c0289376fe50765f0/', views.create_team_vaildation, name="create_team_vaildation"),
+    path('3d0c1cc9660d3c13a543d73325f853f764a8b912631928a8f113a1eda6d3b945/', views.team_list_using_pagination, name="team_list_using_pagination"),
+    path('8a9ffb9aa08dd06406852b2634f4857058fe5c8f9c30a3b3a3f0926d180d2f17/', views.my_team_list, name="my_team_list"),
+    path('c92fef00578afa97b20fd67a590f5a5dde6638f6e1f2f2a29e9177043bcef164/', views.team_match_history, name="team_match_history"),
+    path('fe1208e9a81a6a00d0f99158f64f7a840f492193c932ad8f822f5a0b76d5014c/', views.team_profile_details, name="team_profile_details"),
+    path('297c74d4476635f3ba48b11cf4343545f56b734b3e04f22430d6d7d418937658/', views.team_statistics, name="team_statistics"),
+    path('714c4b4e559a323fe8d2bd968fb5ba0291af816c8291bab2f00341e07eceb849/', views.team_tournament_history, name="team_tournament_history"),
+
     path('9dce0acaee00068dae47a3fb6e9b6507d9bce69a2832ebbe4bfd14494411e7e9/', views.send_team_member_notification, name="send_team_member_notification"),
     
 
@@ -45,7 +58,7 @@ urlpatterns = [
     path('d36377543d4388b68674a16c33686c64cfc14ae07241005e4fca461e970a611d/', views.edit_leagues, name="edit_leagues"),
     path('82577821e2ec5060c52c8e2260ac9b022052fead63ed5838b290fe715ee2fab0/', views.delete_leagues, name="delete_leagues"),
     path('eec3ee15b68b7c7ccda3e5b20c78ddf3b957b81db3905970fc346e777f6a5ed2/', views.save_league, name="save_league"),
-     path('2b9e6d28354d75ef21c3ed5d2d39275509317487a6763316c4f2e59446e22c05/', views.check_invited_code, name="check_invited_code"),
+    path('2b9e6d28354d75ef21c3ed5d2d39275509317487a6763316c4f2e59446e22c05/', views.check_invited_code, name="check_invited_code"),
     
     path('22fef865dab2109505b61d85df50c5126e24f0c0a10990f2670c179fb841bfd2/', views.assigne_match, name="elimination_round_create_match"),
     path('c383e35ca7159e85cdee6e1cd5d8174bd78c9cdbc5cad74dab1219694693df88/', views.send_notification_organizer_to_player, name="send_notification_organizer_to_player"),
@@ -111,14 +124,11 @@ urlpatterns = [
     path('221bac590d7d3725e4150a429d364d732f87128b0aebe78e90f9959a9d453b54/', views.view_elimination_details, name="view_knockout_details"),
     path('014891a28506b292f2c9b020834cbbf1f075bf18186042a2dc3deae985a673a9/',views.view_point_table_details, name="view_round_robin_details"),
     path('9edc82d0660cbd0597ab05119784aa8741f9f039a14d0e5fb33fd805db6046bd/', views.get_match_result, name="get_match_result"),
-    # pagination
-    path('c6d9792e19b52f2ffb961097f6385e430f668b1dccf46514f900cae955757390/', views.player_list_using_pagination, name="player_list_using_pagination"),
-    path('3d0c1cc9660d3c13a543d73325f853f764a8b912631928a8f113a1eda6d3b945/', views.team_list_using_pagination, name="team_list_using_pagination"),
+    
+    
     path('c1ab03839712158bec69da7c630e9e2563e4391db4b01bf27e34514568cea04e/', views.profile_stats_match_history, name="profile_stats_match_history"),
     path('bb4219c7c842ce05582d6a9a7559e85124ff568beff9921c97ddb4ac87f003a5/', views.get_tournament_count, name="get_tournament_count"),
     path('70a46284ef37448a8d477477c2bdf695245a8a36c4b39ed043409e7bb3bc56bb/', views.get_leagues_list, name="get_leagues_list"),
-    path('05bb45dd8fd8292f74bdbd04162360d81dfe6a99db3f4dd55c495ac8c474960f/', views.my_player_list, name="my_player_list"),
-    path('8a9ffb9aa08dd06406852b2634f4857058fe5c8f9c30a3b3a3f0926d180d2f17/', views.my_team_list, name="my_team_list"),
-
+    path('2d78919ac3a46548aff39f6c752625ef04c5b5c9cd3d96a2c7c6672f6d971b8a/', views.get_final_match_details, name="get_final_match_details"),   
 
 ]

@@ -20,6 +20,7 @@ class UserManager(BaseUserManager):
     def create_superuser(self, email, password=None, **extra_fields):
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
+        
         return self.create_user(email, password, **extra_fields)
 
 GENDER_STATUS_CHOICES = (
@@ -89,7 +90,11 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     objects = UserManager()
     def __str__(self):
-        return f'Username : {self.username}; Role : {self.role}'
+        if self.username:
+            username = self.username
+        else:
+            username = None
+        return f'Username : {username}; Role : {self.role}'
     
     def get_role(self):
         return f'{self.role}'

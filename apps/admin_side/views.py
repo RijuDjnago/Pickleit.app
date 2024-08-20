@@ -3,7 +3,8 @@ from apps.user.models import *
 from apps.user.helpers import *
 from apps.team.models import *
 from apps.user.models import *
-from apps.accessories.models import *
+from apps.pickleitcollection.models import *
+from apps.store.models import *
 from django.http import HttpResponse
 import json
 from django.contrib.auth.hashers import make_password
@@ -1433,10 +1434,6 @@ def admin_profile(request):
     return render(request, 'dashboard/side/admin_profile.html', context)
 
 
-
-
-
-
 @login_required(login_url="/admin/login/")
 def app_update(request):
     context = {"data":[], "message":""}
@@ -1777,3 +1774,23 @@ def merchant_request_list(request):
     return render(request, "dashboard/side/merchant/merchantdice_request.html", context)
 
 
+@login_required(login_url="/admin/login/")
+def version_update(request):
+    context = {}     
+    if request.method == "POST":
+        version = request.POST.get("version")
+        release_date = request.POST.get("release_date")
+        print(release_date)
+        description = request.POST.get("description")            
+        updated_version = AppVersion.objects.create(version=version,release_date=release_date, description=description, created_by=request.user.username)
+        
+        return redirect('version_update_list')
+    return render(request, "dashboard/side/update/version_update.html", context)
+
+
+@login_required(login_url="/admin/login/")
+def version_update_list(request):
+    context = {}
+    version_updates = AppVersion.objects.all().values("version", "release_date", "description", "created_by", "updated_users")
+    context["version_updates"] = version_updates
+    return render(request, "dashboard/side/update/version_updates_list.html", context)

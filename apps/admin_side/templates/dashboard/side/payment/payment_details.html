@@ -91,8 +91,8 @@
                                     {% for payment in payment_for_product %}
                                     <tr>
                                         <td>{% for product in payment.payment_for_product.all %}<img src="{{product.product.image.url}}" width="50" class="rounded-circle">Name: {{product.product.name}}, Category: {{product.product.category}}, Price: &#36;{{product.product.price}}{% endfor %}</td>
-                                        <td>{{payment.payment_amount}}</td>
-                                        <td>{{payment.created_by.username}}</td>                            
+                                        <td>{{payment.created_by.username}}</td>   
+                                        <td>{{payment.payment_amount}}</td>                         
                                         <td>{{payment.payment_by}}</td>
                                         <td>{{payment.payment_status}}</td>
                                     </tr>

@@ -6,6 +6,7 @@ from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 # Create your models here.
 import requests
+from django.utils import timezone
 # Create your models here.
 
 
@@ -256,6 +257,7 @@ class RoundRobinGroup(models.Model):
     def __str__(self):
         return f"{self.league_for.name}-{self.league_for.team_type}-{self.court}"
 
+
 class Tournament(models.Model):
     uuid = models.UUIDField(default=uuid.uuid4)
     secret_key = models.CharField(max_length=250, unique=True)
@@ -280,6 +282,11 @@ class Tournament(models.Model):
     set_number = models.IntegerField(null=True, blank=True)
     court_num = models.IntegerField(null=True, blank=True)
     points = models.IntegerField(null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if self.is_completed and not self.playing_date_time:
+            self.playing_date_time = timezone.now()
+        super(Tournament, self).save(*args, **kwargs)
     
     def __str__(self) :
         # str = f"{self.leagues.name} ({self.team1.name} vs {self.team2.name})|| {self.match_type} || Match Number {self.match_number}"
@@ -317,8 +324,7 @@ class PaymentDetailsForRegister(models.Model):
 
     def __str__(self):
         return f"{self.payment_for} | {self.payment_status}"
-    
-       
+        
 
 class SaveLeagues(models.Model):
     uuid = models.UUIDField(default=uuid.uuid4)

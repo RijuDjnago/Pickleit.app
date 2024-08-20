@@ -1,25 +1,26 @@
 from rest_framework import serializers
 from .models import *
 from apps.user.models import *
-from apps.accessories.models import *
+from apps.pickleitcollection.models import *
+
 
 class TeamSerializer(serializers.ModelSerializer):
     class Meta:
         model = Team
         fields = '__all__'
 
+
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['rank', 'username', 'email', 'first_name', 'last_name', 'uuid', 'secret_key', 'phone', 'image', 'is_ambassador', 'is_sponsor', 'is_organizer', 'is_player', 'gender']
 
+
 class PlayerSerializer(serializers.ModelSerializer):
     team = TeamSerializer(many=True, read_only=True)
     user = serializers.SerializerMethodField()
-    player_ranking = serializers.SerializerMethodField()
-    is_follow = serializers.SerializerMethodField()
-    gender = serializers.SerializerMethodField()
-    is_edit = serializers.SerializerMethodField()
+    player_ranking = serializers.SerializerMethodField()    
+    gender = serializers.SerializerMethodField()    
     player_image = serializers.SerializerMethodField()
     user_uuid = serializers.SerializerMethodField()
     user_secret_key = serializers.SerializerMethodField()
@@ -35,9 +36,9 @@ class PlayerSerializer(serializers.ModelSerializer):
             'id', 'uuid', 'secret_key', 'var_team_name', 'var_team_person',
             'player_id', 'player_image', 'player_first_name', 'player_last_name', 
             'player_full_name', 'player_email', 'player_phone_number', 'player_ranking','player__bio',
-            'player_rank_lock', 'identify_player', 'created_at', 'playerCreatedBy',
-            'updated_at', 'playerUpdatedBy', 'is_follow', 'user', 'gender', 'user_uuid',
-            'player__is_ambassador', 'user_secret_key', 'is_edit', 'team'
+            'player_rank_lock', 'identify_player', 'created_at', 'playerCreatedBy','created_by_id',
+            'updated_at', 'playerUpdatedBy', 'user', 'gender', 'user_uuid',
+            'player__is_ambassador', 'user_secret_key', 'team'
         ]
 
     def get_user(self, obj):
@@ -51,20 +52,9 @@ class PlayerSerializer(serializers.ModelSerializer):
         else:
             return float(user.rank)
 
-    def get_is_follow(self, obj):
-        user = self.context.get('request').user
-        following = AmbassadorsDetails.objects.filter(ambassador=user.id).first()
-        if following and obj.id in following.following.values_list('id', flat=True):
-            return True
-        return False
-
     def get_gender(self, obj):
         user = User.objects.filter(id=obj.player_id).first()
         return user.gender if user.gender else "Male"
-
-    def get_is_edit(self, obj):
-        user = self.context['request'].user
-        return obj.created_by_id == user.id
 
     def get_player_image(self, obj):
         if obj.player.image:
@@ -106,7 +96,7 @@ class TeamListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'uuid', 'secret_key', 'name', 'team_image','location',
             'team_type', 'team_person', 'created_by', 'created_by_uuid',
-            'created_by_secret_key', 'player_data', 'team_rank'
+            'created_by_secret_key', 'player_data', 'team_rank', 'created_by_id'
         ]
 
     def get_created_by(self, obj):
@@ -124,11 +114,11 @@ class TeamListSerializer(serializers.ModelSerializer):
 
     def get_player_data(self, obj):
         players = Player.objects.filter(team=obj).values(
-            'uuid', 'secret_key', 'player_full_name',
-            'player_ranking', 'player__rank', 'player__uuid'
+            'uuid', 'secret_key', 'player_full_name', 'player__image',
+            'player_ranking', 'player__rank', 'player__uuid','player_id'
         )
         for player in players:
-            player["user_uuid"] = player["player__uuid"]
+            player["user_id"] = player["player_id"]
             player['player_ranking'] = float(player['player__rank']) if player['player__rank'] not in ["", "null", None] else 1
         return list(players)
 
@@ -143,3 +133,120 @@ class TeamListSerializer(serializers.ModelSerializer):
         if obj.team_image:
             return obj.team_image.name  
         return None
+
+
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ["id","uuid","secret_key","first_name","last_name"]
+
+
+class LeagueSerializer(serializers.ModelSerializer):
+    leagues_team_type = serializers.SerializerMethodField()
+    leagues_pesrson_type = serializers.SerializerMethodField()
+    registered_team = TeamSerializer(many=True, read_only=True)
+    leagues_createdUserBy = serializers.SerializerMethodField()
+    add_organizer = UserSerializer(many=True, read_only=True)
+    class Meta:
+        model = Leagues
+        fields = ["id","uuid","secret_key","name","registration_start_date","registration_end_date","leagues_start_date","leagues_end_date",
+                  "image","play_type","leagues_team_type","leagues_pesrson_type","league_type","location","latitude","longitude","street","city","state","postal_code",
+                  "country","max_number_team","registered_team","add_organizer","leagues_createdUserBy"]
+        
+    def get_leagues_team_type(self, obj):
+        team_type = obj.team_type.name 
+        return team_type
+    
+    def get_leagues_pesrson_type(self, obj):
+        team_person = obj.team_person.name 
+        return team_person
+
+    def get_leagues_createdUserBy(self, obj):
+        created_by_user = f"{obj.created_by.first_name} {obj.created_by.last_name}"
+        return created_by_user
+
+
+class TeamsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Team
+        fields = ["id","name","team_image","team_person","team_type"]
+
+
+class TournamentSerializer(serializers.ModelSerializer):
+    league_name = serializers.SerializerMethodField()
+    team1 = TeamsSerializer()
+    team2 = TeamsSerializer()
+    leagues_location = serializers.SerializerMethodField()
+    winner_team = serializers.SerializerMethodField()
+    loser_team = serializers.SerializerMethodField()
+    team1_score = serializers.SerializerMethodField()
+    team2_score = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Tournament
+        fields = ["league_name","team1","team2","match_number","court_sn","court_num","set_number","winner_team","winner_team_id","loser_team","team1_score","team2_score","playing_date_time","is_drow","leagues_location"]
+
+    def get_league_name(self, obj):
+        return obj.leagues.name
+    
+    def get_leagues_location(self, obj):
+        return obj.leagues.location
+    
+    def get_winner_team(self, obj):
+        winner_team = obj.winner_team.id if obj.winner_team else None
+        return winner_team
+    
+    def get_loser_team(self, obj):
+        loser_name = obj.loser_team.id if obj.loser_team else None
+        return loser_name
+
+    def get_team1_score(self, obj):
+        team1_score = []
+        check_result = TournamentSetsResult.objects.filter(tournament=obj)
+        if check_result:
+            get_result = check_result.first()
+            team1_score.append(get_result.team1_point)
+        return team1_score
+    
+    def get_team2_score(self, obj):
+        team2_score = []
+        check_result = TournamentSetsResult.objects.filter(tournament=obj)
+        if check_result:
+            get_result = check_result.first()
+            team2_score.append(get_result.team2_point)
+        return team2_score
+
+
+class LeagueListSerializer(serializers.ModelSerializer):
+    leagues_team_type = serializers.SerializerMethodField()
+    leagues_pesrson_type = serializers.SerializerMethodField()
+    leagues_createdUserBy = serializers.SerializerMethodField()
+    registered_team = serializers.SerializerMethodField()
+    winner_team = serializers.SerializerMethodField()
+    class Meta:
+        model = Leagues
+        fields = ["id","uuid","secret_key","name","leagues_start_date","leagues_end_date",
+                  "image","play_type","leagues_team_type","leagues_pesrson_type","league_type",
+                  "location","latitude","longitude","max_number_team","registered_team",
+                  "leagues_createdUserBy","winner_team"]
+    
+    def get_leagues_team_type(self, obj):
+        team_type = obj.team_type.name 
+        return team_type
+    
+    def get_leagues_pesrson_type(self, obj):
+        team_person = obj.team_person.name 
+        return team_person
+
+    def get_leagues_createdUserBy(self, obj):
+        created_by_user = f"{obj.created_by.first_name} {obj.created_by.last_name}"
+        return created_by_user
+    
+    def get_registered_team(self, obj):
+        teams = obj.registered_team.values_list("name", flat=True) 
+        return teams
+    
+    def get_winner_team(self, obj):
+        winner_team = obj.winner_team.name if obj.winner_team else None
+        return winner_team
+    

@@ -13,7 +13,7 @@ import jwt, re, base64, uuid
 from datetime import datetime, date, timedelta
 from apps.user.models import User, Role
 from apps.team.models import *
-from apps.accessories.models import *
+from apps.pickleitcollection.models import *
 from apps.user.helpers import GenerateKey
 from django.contrib.auth.hashers import make_password
 from rest_framework import serializers
@@ -21,7 +21,7 @@ from django.conf import settings
 protocol = settings.PROTOCALL
 from apps.chat.models import *
 from apps.team.views import notify_edited_player
-from apps.accessories.views import *
+from apps.pickleitcollection.views import *
 
 
 
