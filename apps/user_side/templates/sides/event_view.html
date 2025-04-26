@@ -1,0 +1,303 @@
+{% extends 'base/base_user.html' %}
+{% load static %}
+
+{% block content %}
+
+<!-- Modal -->
+<!-- <div class="modal fade" id="eventModal" tabindex="-1" aria-labelledby="eventModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="eventModalLabel">{{ event.name }} || {{ event.team_type }} || {{ event.team_person }}</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="event-detail">
+                    <strong>Event Name:</strong> {{ event.name }}
+                </div>
+                <div class="event-detail">
+                    <strong>Registration end Date:</strong> {{ event.registration_end_date }}
+                </div>
+                <div class="event-detail">
+                    <strong>Start Date:</strong> {{ event.leagues_start_date }}
+                </div>
+                <div class="event-detail">
+                    <strong>Total fees:</strong> {{total_fees}}
+                </div>
+                <div class="event-detail">
+                    <strong>Your wallet balance:</strong> $ {{balance}}
+                </div>
+
+                <input type="text" id="teamSearch" class="form-control mt-3 mb-2" placeholder="Search teams...">
+
+                <h6 class="mt-4 mb-3"><strong>Select Teams:</strong></h6>
+                <div class="team-container-wrapper">
+                    <div class="team-container" id="teamContainer">
+                        {% for team in my_team %}
+                            <label class="team-card">
+                                <input type="checkbox" class="team-checkbox" value="1">
+                                <div class="team-content">
+                                    <div class="team-info">
+                                        <h6>{{team.name}} || {{team.team_person}} || {{team.team_type}}</h6>
+                                        <div class="player-list">
+                                            
+                                            {% for player in team.players %}
+                                                <div class="player-item">
+                                                    <img src="https://plus.unsplash.com/premium_photo-1689568126014-06fea9d5d341?fm=jpg&q=60&w=3000&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MXx8cHJvZmlsZXxlbnwwfHwwfHx8MA%3D%3D" alt="Player 1">
+                                                    <span>{{player.player.first_name}} {{player.player.last_name}}</span>
+                                                </div>
+                                            {% endfor %}
+                                                
+                                            
+                                        </div>
+                                    </div>
+                                    <img src="https://img.freepik.com/premium-vector/avatar-profile-icon-flat-style-male-user-profile-vector-illustration-isolated-background-man-profile-sign-business-concept_157943-38764.jpg?semt=ais_hybrid" alt="Development Team" class="team-image">
+                                </div>
+                            </label> 
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-submit" id="submitBtn">Submit</button>
+            </div>
+        </div>
+    </div>
+</div> -->
+<div class="card col-lg-12" style="max-width: auto;">
+    <div class="card-header text-center">
+        <div class="h3 mb-0 col-lg-12">
+            {{ event.name }} || {{ event.team_type }} || {{ event.team_person }}
+        </div>
+        <div class="col-lg-12">
+            {% if event.created_by == request.user %}
+                <a href="{% url 'user_side:edit_event' event.id %}" class="btn btn-danger btn-sm">Edit Event</a>
+            {% endif %}
+            <a href="{% url 'user_side:event_user' %}" class="btn btn-primary btn-sm">Back to list</a>
+            
+            {% if is_join %}
+                <a href="{% url 'user_side:join_team_event' event.id %}" class="btn btn-success btn-sm">Join Event</a>
+            {% else %}
+                <a class="btn btn-success btn-sm" deactivate>Join Event</a>
+            {% endif %}
+                
+            {% if event.created_by == request.user and not matches %}
+                <a href="#" class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#startTournamentModal">Start Tournament</a>
+            {% endif %}
+
+            <!-- Modal -->
+            <div class="modal fade" id="startTournamentModal" tabindex="-1" aria-labelledby="modalLabel" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="modalLabel">Start Tournament</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p><strong>Maximum Teams Allowed:</strong> <span id="maxTeams"></span></p>
+                            <p><strong>Teams Registered:</strong> <span id="registeredTeams"></span></p>
+                            <p id="warningMessage" class="text-danger"></p>
+                            <p>Do you really want to start the tournament?</p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">No</button>
+                            <a href="#" id="confirmStartBtn" class="btn btn-danger">Yes, Start</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <script>
+                document.addEventListener("DOMContentLoaded", function () {
+                    // Dummy data (Replace these values dynamically in Django template context)
+                    const maxTeams = {{ event.max_number_team }};
+                    const registeredTeams = {{ event.registered_team.count }};
+
+                    document.getElementById("maxTeams").innerText = maxTeams;
+                    document.getElementById("registeredTeams").innerText = registeredTeams;
+
+                    const warningMessage = document.getElementById("warningMessage");
+                    if (registeredTeams < maxTeams) {
+                        warningMessage.innerText = "Warning: Not all slots are filled.";
+                    } else {
+                        warningMessage.innerText = "";
+                    }
+
+                    // Handle confirmation click
+                    document.getElementById("confirmStartBtn").addEventListener("click", function () {
+                        window.location.href = "{% url 'user_side:start_tournament' event.id %}";
+                    });
+                });
+            </script>
+        </div>
+    </div>
+    
+    <div class="row g-0">
+        <div class="col-md-12 text-center" >
+            <img src="https://pickleit.app/static/images/pickleit_newlogo.jpg" 
+                 class="img-fluid rounded-start" alt="Event Image" style="margin:10px auto;">
+        </div>
+        <div class="col-md-8">
+            <div class="card-body">
+                <p><strong>Max Join Team:</strong> {{ event.max_number_team }} || 
+                   <strong>Joined Team:</strong> {{ event.registered_team.count }}</p>
+                <p><strong>Event Registration Duration:</strong> 
+                   {{ event.registration_start_date }} - {{ event.registration_end_date }}</p>
+                <p><strong>Event Start Duration:</strong> 
+                   {{ event.leagues_start_date }} - {{ event.leagues_end_date }}</p>
+                <p><strong>Event Organizers:</strong> 
+                   {{ event.created_by.first_name }} {{ event.created_by.last_name }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Joined Teams -->
+<div class="card text-center">
+    <div class="card-header">
+        <h2 class="h3">Joined Teams</h2>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            {% for team in event.registered_team.all %}
+                <div class="col-lg-2 col-md-6 col-sm-4">
+                    <div class="card shadow-sm">
+                        <div class="card-body text-center">
+                            <img src="https://pickleit.app/static/images/pickleit_newlogo.jpg" 
+                                 alt="{{ team.name }}" class="rounded-circle mb-2" width="80" height="80">
+                            <h5 class="card-title mb-0">{{ team.name }}</h5>
+                        </div>
+                    </div>
+                </div>
+            {% empty %}
+                <p>No teams have joined yet.</p>
+            {% endfor %}
+        </div>
+    </div>
+    
+</div>
+
+<!-- Matches -->
+<div class="card text-center">
+    <div class="card-header">
+        <h2 class="h3">Matches</h2>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            {% for match in matches %}
+            <div class="col-lg-4 col-md-6 col-sm-12">
+                <div class="versus-card">
+                    <h3><span><i class="" data-feather="compass"></i></span>{{ match.leagues.name }}</h3>
+                    <div class="v-team">
+                        <div class="v-team-left">
+                            <p><img src="https://pickleit.app/static/images/pickleit_newlogo.jpg" alt="" class="me-2">{{ match.team1.name }}</p>
+                            <p><img src="https://pickleit.app/static/images/pickleit_newlogo.jpg" alt="" class="me-2">{{ match.team2.name }}</p>
+                        </div>
+                        <div class="v-team-right">
+                            <p>{{ match.created_at.date}} <span>{{ match.created_at.time}}</span></p>
+                        </div>
+                    </div>
+                    <div class="v-info">
+                        <p><strong>Match</strong> {{ match.match_number }}</p>
+                        <a class="btn btn-info" data-bs-toggle="collapse" href="#showdata{{ match.id }}" role="button" aria-expanded="false" aria-controls="showdata">View <i class="align-middle" data-feather="chevron-right"></i></a>
+                    </div>
+                    <div class="collapse mt-2" id="showdata{{ match.id }}">
+                        <div class="card card-body">
+                            <table class="table">
+                                <thead>
+                                  <tr>
+                                    <th>Sr. No.</th>
+                                    <th>{{match.team1.name}}</th>
+                                    <th>{{match.team2.name}}</th>
+                                    <th>Status</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                    {% for score in match.score %}
+                                    <tr>
+                                        <td>{{ score.set_number }}</td>
+                                        <td>{{ score.team1_point}}</td>
+                                        <td>{{ score.team2_point}}</td>
+                                        <td><a href="javascript:void(0);" class="btn btn-success">{{score.win_team.name}}</a></td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                              </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+                <p class="text-danger text-center">No matches available</p>
+            {% endfor %}
+        </div>
+    </div>
+    
+</div>
+
+
+<!-- Point Table -->
+<div class="card text-center">
+    
+        <div class="card-header">
+            <h2 class="h3 mb-0 text-center">Point Table</h2>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-12">
+                    <table class="table">
+                        <thead class="table">
+                            <tr>
+                                <th>Rank</th>
+                                <th>Team</th>
+                                <th>Matches Played</th>
+                                <th>Wins</th>
+                                <th>Losses</th>
+                                <th>Draws</th>
+                                <th>Points</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for team, stats in sorted_teams %}
+                                <tr>
+                                    <td>{{ forloop.counter }}</td>
+                                    <td>{{ team.name }}</td>
+                                    <td>{{ stats.played }}</td>
+                                    <td>{{ stats.wins }}</td>
+                                    <td>{{ stats.losses }}</td>
+                                    <td>{{ stats.draws }}</td>
+                                    <td><strong>{{ stats.points }}</strong></td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="7" class="text-center text-danger">No matches played yet.</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.getElementById("teamSearch").addEventListener("input", function () {
+        let searchValue = this.value.toLowerCase();
+        let teams = document.querySelectorAll(".team-card");
+
+        teams.forEach(function (team) {
+            let teamName = team.querySelector("h6").innerText.toLowerCase();
+            if (teamName.includes(searchValue)) {
+                team.style.display = "flex";
+            } else {
+                team.style.display = "none";
+            }
+        });
+    });
+</script>
+{% endblock %}

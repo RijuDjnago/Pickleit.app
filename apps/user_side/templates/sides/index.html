@@ -1,0 +1,269 @@
+{% extends 'base/base_user.html' %}
+{% load static %}
+{% block style %}
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+<style>
+    .post-card {
+        border: none;
+        border-radius: 15px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        margin-bottom: 25px;
+        overflow: hidden;
+    }
+
+    .post-image img {
+        width: 100%;
+        height: 350px;
+        object-fit: cover;
+    }
+
+    .post-actions .btn:hover {
+        background: #f0f2f5;
+    }
+</style>
+{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3"><strong>Analytics</strong> Dashboard</h1>
+<div class="row">
+    <div class="col-xl-6 col-xxl-5 d-flex">
+        <div class="w-100">
+            <div class="row">
+                <div class="col-sm-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col mt-0">
+                                    <h5 class="card-title">Your Teams</h5>
+                                </div>
+
+                                <div class="col-auto">
+                                    <div class="stat text-primary">
+                                        <i class="align-middle" data-feather="truck"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <h1 class="mt-1 mb-3">{{user_teams_count}}</h1>
+                            <div class="mb-0">
+                                <span class="text-muted"><a href="#">Click</a> view for team list</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col mt-0">
+                                    <h5 class="card-title">Completed event</h5>
+                                </div>
+
+                                <div class="col-auto">
+                                    <div class="stat text-primary">
+                                        <i class="align-middle" data-feather="users"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <h1 class="mt-1 mb-3">{{completed_event_count}}</h1>
+                            <div class="mb-0">
+                                <span class="text-muted"><a href="#">Click</a> view for event list</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-sm-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col mt-0">
+                                    <h5 class="card-title">Balance</h5>
+                                </div>
+
+                                <div class="col-auto">
+                                    <div class="stat text-primary">
+                                        <i class="align-middle" data-feather="dollar-sign"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <h1 class="mt-1 mb-3">${{balance}}</h1>
+                            <div class="mb-0">
+                                <span class="text-muted"><a href="#">Click</a> view for wallet details</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col mt-0">
+                                    <h5 class="card-title">Join event</h5>
+                                </div>
+
+                                <div class="col-auto">
+                                    <div class="stat text-primary">
+                                        <i class="align-middle" data-feather="shopping-cart"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <h1 class="mt-1 mb-3">{{join_event_count}}</h1>
+                            <div class="mb-0">
+                                <span class="text-muted"><a href="#">Click</a> view for event list</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-6 col-xxl-7">
+        <div class="card flex-fill w-100 shadow-sm">
+            <div class="card-header ">
+                <h5 class="card-title mb-0 ">Match History (Last 5 Records)</h5>
+            </div>
+            <div class="card-body py-3" style="min-height: 130px; display: flex; align-items: center; justify-content: center;">
+
+                {% if match_history %}
+                    <div class="w-100" style="max-height: 300px; overflow-y: auto;">
+                        <ul class="list-group w-100" id="matchHistory">
+                            {% for match in match_history %}
+                                <li class="list-group-item d-flex align-items-center">
+                                    
+                                    {% if match.team1.image %}
+                                        <img src="{{ match.team1.image }}" class="rounded me-3" width="75" height="75" alt="{{ match.team1.name }}">
+                                    {% else %}
+                                        <img src="https://c8.alamy.com/comp/BK720G/vector-of-no-i-in-team-teamwork-message-BK720G.jpg" class="rounded me-3" width="75" height="75" alt="No Image">
+                                    {% endif %}
+                                    
+                                    <span>VS</span>
+                                    
+                                    {% if match.team2.image %}
+                                        <img src="{{ match.team2.image }}" class="rounded ms-3 me-3" width="75" height="75" alt="{{ match.team2.name }}">
+                                    {% else %}
+                                        <img src="https://c8.alamy.com/comp/BK720G/vector-of-no-i-in-team-teamwork-message-BK720G.jpg" class="rounded ms-3 me-3" width="75" height="75" alt="No Image">
+                                    {% endif %}
+                                    
+                                    <div>
+                                        <h5 class="mb-0">Tournament: {{ match.leagues }}</h5>
+                                        <small>Score: {{ match.winner_team_score }} - {{ match.loser_team_score }}</small>
+                                        <br>
+                                        <small>Teams: {{ match.team1.name }} vs {{ match.team2.name }}</small>
+                                    </div>
+                                </li>
+                            {% endfor %}   
+                        </ul>
+                    </div>
+                {% else %}
+                    <p id="noDataMessage" class="text-muted text-center w-100">No match history available</p>
+                {% endif %}
+                
+            </div>
+            
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-xl-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0 ">Nearby Clubs & Pickleball Courts</h5>
+            </div>
+            <div class="card-body">
+                <input id="locationSearch" class="form-control mb-3" type="text" placeholder="Search for location...">
+                <div id="map" style="width: 100%; height: 400px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-xl-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Social Feed</h5>
+            </div>
+            <div class="card-body">
+                <div class="container-fluid">
+                    {% if socail_feed_list %}
+                        {% for feed in socail_feed_list %}
+                            <div class="post-card card">
+                                <div class="card-header d-flex justify-content-between align-items-center bg-light">
+                                    <div class="d-flex align-items-center">
+                                        <img src="{{feed.user.image.url}}" class="rounded-circle me-2" width="45" height="45" alt="Author">
+                                        <div>
+                                            <h6 class="mb-0 fw-bold">{{feed.user.first_name}} <span class="badge bg-primary ms-1">✓</span></h6>
+                                            <small class="text-muted">{{feed.created_at}}</small>
+                                        </div>
+                                    </div>
+                                    <div class="dropdown">
+                                        <button class="btn btn-link text-muted p-0" data-bs-toggle="dropdown">
+                                            <i class="bi bi-three-dots"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    {{feed.text}}
+                                </div>
+                                <div class="post-image">  
+                                    
+                                    {% if feed.image %}
+                                        <img src="{{feed.image}}" alt="Ocean image">
+                                    {% else %}
+                                        <img src="https://thumb.ac-illust.com/b1/b170870007dfa419295d949814474ab2_t.jpeg" alt="Ocean image">
+                                    {% endif %}
+                                         
+                                    
+                                </div>
+                                <div class="card-footer d-flex justify-content-between align-items-center">
+                                    <div class="d-flex align-items-center">
+                                        <img src="https://e8gsb.csb.app/images/like.svg" width="24" height="24" class="me-2" alt="Like">
+                                        <span>{{feed.number_like}}</span>
+                                    </div>
+                                    <div class="text-muted">
+                                        <span class="me-3">{{feed.number_comment}}</span>
+                                    </div>
+                                </div>
+                                <div class="d-flex border-top p-2">
+                                    <div class="btn-group w-100" role="group">
+                                        <button class="btn text-secondary"><i class="bi bi-hand-thumbs-up me-1"></i> Like</button>
+                                        <button class="btn text-secondary"><i class="bi bi-chat me-1"></i> Comment</button>
+                                    </div>
+                                    <div class="d-flex align-items-center ms-2">
+                                        <img src="https://i.postimg.cc/B6TCqCDS/seller3.jpg" class="rounded-circle" width="25" height="25" alt="User">
+                                        <i class="bi bi-caret-down-fill"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}   
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAQ_OGAb4yuL8g55IMufP3Dwd4yjrWxrdI&callback=initMap" async defer></script>
+<script>
+    function initMap() {
+        var map = new google.maps.Map(document.getElementById('map'), {
+            center: { lat: 37.7749, lng: -122.4194 }, // Default location
+            zoom: 12
+        });
+        var input = document.getElementById('locationSearch');
+        var searchBox = new google.maps.places.SearchBox(input);
+        map.controls[google.maps.ControlPosition.TOP_LEFT].push(input);
+
+        searchBox.addListener('places_changed', function() {
+            var places = searchBox.getPlaces();
+            if (places.length === 0) return;
+            var bounds = new google.maps.LatLngBounds();
+            places.forEach(function(place) {
+                if (!place.geometry) return;
+                bounds.extend(place.geometry.location);
+            });
+            map.fitBounds(bounds);
+        });
+    }
+</script>
+<script>google.maps.event.addDomListener(window, 'load', initMap);</script>
+{% endblock %}
+

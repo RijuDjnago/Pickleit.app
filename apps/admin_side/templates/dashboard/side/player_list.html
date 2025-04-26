@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block extra_css %}
+    <style>
+        .pagination .page-item.active .page-link {
+            background-color: #007bff;
+            border-color: #007bff;
+            color: white;
+        }
+        .pagination .page-item .page-link {
+            color: #007bff;
+        }
+        .pagination .page-item.disabled .page-link {
+            color: #6c757d;
+        }
+        .btn-group .btn {
+            margin-right: 5px;
+        }
+    </style>
+{% endblock %}
+
+{% block page_title %}
+    Player
+{% endblock %}
+
+{% block content %}
+<div class="page-breadcrumb p-4">
+    <form method="GET" action="">
+        <div class="row d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center m-2">
+                <h4 class="page-title">User Details</h4>
+                <select class="form-control ml-3" name="page_length" style="width: 120px;" onchange="this.form.submit()">
+                    <option value="10" {% if page_length == "10" %}selected{% endif %}>10</option>
+                    <option value="50" {% if page_length == "50" %}selected{% endif %}>50</option>
+                    <option value="100" {% if page_length == "100" %}selected{% endif %}>100</option>
+                    <option value="200" {% if page_length == "200" %}selected{% endif %}>200</option>
+                </select>
+            </div>
+
+            <div class="d-flex align-items-center">
+                <select class="form-control mr-2" name="select_plan" style="width: 180px;">
+                    {% if select_plan %}
+                        <option value="" selected>........</option>
+                        <option value="Free" {% if select_plan == "Free" %}selected{% endif %}>Free</option>
+                        <option value="Paid with upgrade" {% if select_plan == "Paid with upgrade" %}selected{% endif %}>Paid with upgrade</option>
+                        <option value="Pro" {% if select_plan == "Pro" %}selected{% endif %}>Pro</option>
+                        <option value="Enterprise" {% if select_plan == "Enterprise" %}selected{% endif %}>Enterprise</option>
+                    {% else %}
+                        <option value="" selected>Select Plan</option>
+                        <option value="Free">Free</option>
+                        <option value="Paid with upgrade">Paid with upgrade</option>
+                        <option value="Pro">Pro</option>
+                        <option value="Enterprise">Enterprise</option>
+                    {% endif %}
+                </select>
+                
+                <input type="text" name="search_text" class="form-control mr-2" placeholder="Search Player..." 
+                    value="{% if search_text %}{{ search_text }}{% endif %}" style="width: 200px;">
+                
+                <button type="submit" class="btn btn-secondary"><i class="fas fa-search"></i></button>
+                
+                <a href="/admin/create_player_/" class="btn btn-primary font-weight-bold ml-3">Add User</a>
+            </div>
+        </div>
+    </form>
+</div>
+
+<div class="container-fluid">
+    <div class="card">            
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered">
+                    <thead class="thead">
+                        <tr>
+                            <th class="text-center">Name</th>
+                            <th class="text-center">Email</th>
+                            <th class="text-center">Contact No</th>
+                            <th class="text-center">Date of Join</th>
+                            <th class="text-center">Gender</th>
+                            <th class="text-center">Rank</th>
+                            <th class="text-center">Wallet Balance</th>
+                            <th class="text-center">Current Plan</th>
+                            <th class="text-center">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for player in player_list %}
+                        <tr>
+                            <td class="text-center">{{ player.first_name }}{{ player.last_name }}</td>
+                            <td class="text-center">{{ player.email }}</td>
+                            <td class="text-center">{{ player.phone }}</td>
+                            <td class="text-center">{{ player.created_at }}</td>
+                            <td class="text-center">{{ player.gender }}</td>
+                            <td class="text-center">{{ player.rank }}</td>
+                            <td class="text-center">{{ player.balance }}</td>
+                            <td class="text-center">{{ player.plan }}</td>
+                            <td class="text-center">
+                                <div class="btn-group" role="group">
+                                    <a href="/admin/player_view_/{{ player.id }}/" class="btn btn-success btn-sm"><i class="fas fa-eye"></i></a>
+                                    <a href="/admin/edit_player_/{{ player.id }}/" class="btn btn-primary btn-sm"><i class="fas fa-edit"></i></a>
+                                    <a href="/admin/delete_player_/{{ player.id }}/" class="btn btn-danger btn-sm"><i class="fas fa-trash-alt"></i></a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="8" class="text-center text-muted">No players found.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Custom Pagination Controls -->
+            <nav aria-label="Page navigation">
+                <ul class="pagination justify-content-center">
+                    {% if player_list.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1">First</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ player_list.previous_page_number }}">Previous</a>
+                        </li>
+                    {% endif %}
+
+                    {% for p in page_range %}
+                        {% if p == "..." %}
+                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                        {% else %}
+                            <li class="page-item {% if player_list.number == p %}active{% endif %}">
+                                <a class="page-link" href="?page={{ p }}">{{ p }}</a>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if player_list.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ player_list.next_page_number }}">Next</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ player_list.paginator.num_pages }}">Last</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+
+        </div>
+    </div>
+</div>
+{% endblock %}

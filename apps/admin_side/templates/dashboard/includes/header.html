@@ -1,0 +1,310 @@
+{% load static %}
+<style>
+    /* Logout Modal Styles */
+    .modal1 {
+        display: none; /* Hide modal by default */
+        position: fixed;
+        z-index: 9999; /* Ensure it's above other content */
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        background-color: #fff;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+        padding: 20px;
+        width: 500px; /* Adjust width as needed */
+        height:180px;
+    }
+
+    .modal-content-1 {
+        text-align: center;
+    }
+
+    .btns {
+        margin-top: 20px;
+    }
+
+    button:hover {
+        background-color: #0056b3;
+    }
+    .notification-badge {
+        top: 5px;
+        right: 5px;
+        font-size: 12px;
+        padding: 3px 7px;
+    }
+
+    .notification-dropdown {
+        width: 550px;
+        max-height: 600px;
+        overflow-y: auto;
+        padding: 10px;
+    }
+
+    .notification-list {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+
+    .notification-item {
+        padding: 10px;
+        border-radius: 5px;
+        transition: background-color 0.2s ease-in-out;
+    }
+
+    .notification-item:hover {
+        background-color: #f8f9fa;
+    }
+
+    .notification-icon {
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        font-size: 18px;
+        margin-right: 10px;
+    }
+
+    .notification-text {
+        flex-grow: 1;
+    }
+
+</style>
+
+ <header class="topbar" data-navbarbg="skin5">
+    <nav class="navbar fixed-top top-navbar navbar-expand-md navbar-dark">
+        <div class="navbar-header" data-logobg="skin5">
+            
+            <a class="nav-toggler waves-effect waves-light d-block d-md-none" href="javascript:void(0)"><i class="ti-menu ti-close"></i></a>
+            
+            <a class="navbar-brand" href="/admin/">
+                
+                <b class="logo-icon p-l-10">
+                    
+                    <h4>PICKLEit Admin</h4>
+                </b>
+                
+                
+            </a>
+            
+            <a class="topbartoggler d-block d-md-none waves-effect waves-light" href="javascript:void(0)" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation"><i class="ti-more"></i></a>
+        </div>
+        
+        <div class="navbar-collapse collapse" id="navbarSupportedContent" data-navbarbg="skin5">
+            
+            <ul class="navbar-nav float-left mr-auto">
+                <li class="nav-item d-none d-md-block"><a class="nav-link sidebartoggler waves-effect waves-light" href="javascript:void(0)" data-sidebartype="mini-sidebar"><i class="mdi mdi-menu font-24"></i></a></li>
+                                        
+            </ul>
+            
+            <ul class="navbar-nav float-right">                       
+                <!-- Notification Dropdown -->
+                <li class="nav-item dropdown mr-3">
+                    <a class="nav-link dropdown-toggle text-muted waves-effect waves-dark position-relative" href="#" id="notificationDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        <i class="fas fa-bell fa-lg"></i>
+                        <span class="badge badge-pill badge-danger position-absolute notification-badge" id="notificationCount" style="display: none;">0</span>
+                    </a>
+                    <div class="dropdown-menu dropdown-menu-right shadow-lg notification-dropdown" aria-labelledby="notificationDropdown">
+                        <h6 class="dropdown-header">Notifications</h6>
+                        <div id="notificationList" class="notification-list">
+                            <!-- Dynamic Notifications will be inserted here -->
+                        </div>
+                        <div class="dropdown-divider"></div>
+                        <a href="#" class="dropdown-item text-center text-primary">View all notifications</a>
+                    </div>
+                </li>
+                
+
+
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle text-muted waves-effect waves-dark pro-pic" href="" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><img src="{% if request.user.image %}{{request.user.image.url}}{% endif %}" alt="user" class="rounded-circle" width="31"></a>
+                    <div class="dropdown-menu dropdown-menu-right user-dd animated">
+                        <a class="dropdown-item" href="{% url "dashboard:admin_profile" %}"><i class="mdi mdi-account m-r-5 m-l-5"style="font-size: 20px;"></i> View Profile</a>
+                        <a class="dropdown-item" href="/pickleit-admin-main/" target="_blank"><i class="mdi mdi-account-settings-variant m-r-5 m-l-5"style="font-size: 20px;"></i> Admin Console</a>
+                        <a id="logoutLink" class="dropdown-item" href="#"><i class="fas fa-sign-out-alt m-r-5 m-l-5"></i> Logout</a>
+                        
+                    </div>
+                </li>
+            </ul>
+        </div>
+    </nav>
+</header>
+<div id="logoutModal" class="modal modal1" width="100">
+    <div class="modal-content modal-content-1">
+        <h3>Do you want to logout?</h3>
+        <div class="modal-buttons btns">
+        <button id="confirmLogout" class="btn-danger">Yes</button>
+        <button id="cancelLogout" class="btn-dark">No</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.getElementById('logoutLink').addEventListener('click', function(event) {
+        event.preventDefault(); // Prevent the default action of the link
+
+        // Show the logout confirmation modal
+        document.getElementById('logoutModal').style.display = 'block';
+    });
+    var logoutModal = document.getElementById('logoutModal');
+
+    // Get the confirm logout button
+    var confirmLogoutBtn = document.getElementById('confirmLogout');
+
+    // Get the cancel logout button
+    var cancelLogoutBtn = document.getElementById('cancelLogout');
+
+    // When the user clicks the confirm logout button
+    confirmLogoutBtn.addEventListener('click', function() {
+        // Perform logout action
+        window.location.href = "{% url 'dashboard:logout' %}";
+    });
+
+    // When the user clicks the cancel logout button
+    cancelLogoutBtn.addEventListener('click', function() {
+        // Close the logout modal
+        logoutModal.style.display = 'none';
+    });
+    
+</script>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const roomName = "user_1";  // Replace dynamically
+        const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
+        const wsUrl = `${wsScheme}://${window.location.host}/ws/notify/${roomName}/`;
+        
+        const notificationDropdown = document.getElementById("notificationDropdown");
+        const notificationList = document.getElementById("notificationList");
+        const notificationCount = document.getElementById("notificationCount");
+
+        let unreadNotificationIds = []; // Stores unread notification IDs
+
+        const socket = new WebSocket(wsUrl);
+
+        socket.onopen = function () {
+            console.log("✅ WebSocket Connected.");
+        };
+
+        socket.onmessage = function (event) {
+            const data = JSON.parse(event.data);
+            console.log("🔔 Notification received:", data);
+
+            if (data.message === "Get Notification") {
+                updateNotifications(data.all_notifications, data.unread_noti_count);
+            }
+        };
+
+        socket.onclose = function () {
+            console.warn("⚠️ WebSocket Closed. Reconnecting in 5 seconds...");
+            setTimeout(() => {
+                window.location.reload();
+            }, 5000);
+        };
+
+        socket.onerror = function (error) {
+            console.error("❌ WebSocket Error:", error);
+        };
+
+        function updateNotifications(notifications, unreadCount) {
+            notificationList.innerHTML = "";
+            unreadNotificationIds = [];
+
+            // Update unread notification count
+            if (unreadCount > 0) {
+                notificationCount.textContent = unreadCount;
+                notificationCount.style.display = "block";
+            } else {
+                notificationCount.style.display = "none";
+            }
+
+            notifications.forEach(notification => {
+                const notificationItem = document.createElement("a");
+                notificationItem.href = "#"; 
+                notificationItem.classList.add("dropdown-item", "d-flex", "align-items-center", "notification-item");
+
+                const iconWrapper = document.createElement("div");
+                iconWrapper.classList.add("notification-icon", "bg-primary", "text-white");
+
+                const icon = document.createElement("i");
+                icon.classList.add("fas", "fa-bell");
+                iconWrapper.appendChild(icon);
+
+                const textWrapper = document.createElement("div");
+                textWrapper.classList.add("notification-text");
+
+                const title = document.createElement("span");
+                title.classList.add("font-weight-bold");
+                title.textContent = notification.titel || "New Notification";
+
+                const message = document.createElement("small");
+                message.classList.add("d-block", "text-muted");
+                message.innerHTML = breakText(notification.text_message, 30);
+
+                const timestamp = document.createElement("small");
+                timestamp.classList.add("d-block", "text-muted");
+                timestamp.textContent = formatTimestamp(notification.created_at);
+
+                textWrapper.appendChild(title);
+                textWrapper.appendChild(message);
+                textWrapper.appendChild(timestamp);
+
+                notificationItem.appendChild(iconWrapper);
+                notificationItem.appendChild(textWrapper);
+                notificationList.appendChild(notificationItem);
+
+                // Collect unread notification IDs
+                if (!notification.is_read) {
+                    unreadNotificationIds.push(notification.id);
+                }
+            });
+        }
+
+        function breakText(text, length) {
+            if (!text) return "No message available";
+            return text.replace(new RegExp(`(.{1,${length}})`, "g"), "$1<br>");
+        }
+
+        function formatTimestamp(timestamp) {
+            if (!timestamp) return "Unknown time";
+            const date = new Date(timestamp);
+            return date.toLocaleString();
+        }
+
+        // 📌 Handle notification icon click: Open dropdown & mark as read
+        notificationDropdown.addEventListener("click", function () {
+            if (unreadNotificationIds.length > 0) {
+                markNotificationsAsRead(unreadNotificationIds);
+            }
+        });
+
+        function markNotificationsAsRead(notificationIds) {
+            fetch("https://pickleit.app/admin/read_notification/", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": getCSRFToken(),
+                },
+                body: JSON.stringify({ unread_notification_ids: notificationIds }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log("✅ Notifications marked as read:", data);
+                notificationCount.style.display = "none"; // Hide unread count
+            })
+            .catch(error => console.error("❌ Error marking notifications as read:", error));
+        }
+
+        // 📌 Function to get CSRF token
+        function getCSRFToken() {
+            return document.cookie.split("; ")
+                .find(row => row.startsWith("csrftoken"))
+                ?.split("=")[1] || "";
+        }
+    });
+
+
+
+</script>     

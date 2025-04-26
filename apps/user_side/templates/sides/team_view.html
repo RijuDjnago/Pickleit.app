@@ -1,0 +1,144 @@
+{% extends 'base/base_user.html' %}
+{% load static %}
+
+{% block content %}
+<div class="d-flex justify-content-end">
+    {% if team_details.created_by == request.user %}
+    <a href="{% url 'user_side:edit_team' team_details.id %}" class="btn btn-primary">Edit Team</a>
+    {% endif %}
+</div>
+<h1 class="h3 mb-3">{{ team_details.name }} Details</h1>
+
+<div class="row">
+    <!-- Left Side: Team Details and Players -->
+    <div class="col-md-6">
+        <div class="card">
+            <img src="{{ team_details.logo.url }}" class="card-img-top" alt="{{ team_details.name }}">
+            <div class="card-body">
+                <h5 class="card-title">{{ team_details.name }}</h5>
+                <p class="card-text">{{ team_details.description }}</p>
+            </div>
+        </div>
+        
+        <!-- Player List -->
+        <h4 class="mt-3">Players</h4>
+        <ul class="list-group">
+            {% for player in players %}
+            <li class="list-group-item d-flex align-items-center">
+                <img src="{{ player.image.url }}" alt="{{ player.player.first_name }} " class="rounded-circle me-2" style="width: 40px; height: 40px;">
+                {{ player.player.first_name }} {{player.player.last_name}}
+                <button class="btn btn-danger btn-sm ms-auto remove-player" data-player-id="{{ player.id }}">×</button>
+            </li>
+            {% empty %}
+            <li class="list-group-item text-muted">No players available</li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <!-- Right Side: Stats -->
+    <div class="col-md-6">
+        <div class="row mb-3">
+            <div class="col-md-4">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title">Played Matches</h5>
+                        <h1>{{ total_matches }}</h1>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title">Wins</h5>
+                        <h1 class="text-success">{{ wins }}</h1>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title">Losses</h5>
+                        <h1 class="text-danger">{{ losses }}</h1>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Match History Section (Only Show If Matches Exist) -->
+{% if match_history %}
+<h3 class="mt-4">Match History</h3>
+<div class="row">
+    {% for match in match_history %}
+    <div class="col-lg-4 col-md-6 col-sm-12">
+        <div class="versus-card">
+            <h3><span><i class="" data-feather="compass"></i></span>{{ match.leagues.name }}</h3>
+            <div class="v-team">
+                <div class="v-team-left">
+                    <p><img src="{% static 'images/team-placeholder.png' %}" alt="" class="me-2">{{ match.team1.name }}</p>
+                    <p><img src="{% static 'images/team-placeholder.png' %}" alt="" class="me-2">{{ match.team2.name }}</p>
+                </div>
+                <div class="v-team-right">
+                    <p>{{ match.created_at.date }} <span>{{ match.created_at.time }}</span></p>
+                </div>
+            </div>
+            <div class="v-info">
+                <p><strong>Match</strong> {{ match.match_number }}</p>
+                <a class="btn btn-info" data-bs-toggle="collapse" href="#showdata{{ match.id }}" role="button" aria-expanded="false" aria-controls="showdata">View <i class="align-middle" data-feather="chevron-right"></i></a>
+            </div>
+            <div class="collapse mt-2" id="showdata{{ match.id }}">
+                <div class="card card-body">
+                    <table class="table">
+                        <thead>
+                          <tr>
+                            <th>Sr. No.</th>
+                            <th>{{ match.team1.name }}</th>
+                            <th>{{ match.team2.name }}</th>
+                            <th>Winner</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                            {% for score in match.scores %}
+                            <tr>
+                                <td>{{ score.set_number }}</td>
+                                <td>{{ score.team1_point }}</td>
+                                <td>{{ score.team2_point }}</td>
+                                <td><a href="javascript:void(0);" class="btn btn-success">{{ score.win_team.name }}</a></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                      </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p class="text-center mt-4">No match history available.</p>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Remove player from the list
+    document.querySelectorAll('.remove-player').forEach(button => {
+        button.addEventListener('click', function() {
+            let playerId = this.dataset.playerId;
+            let listItem = this.closest('li');
+            
+            fetch(`/remove-player/${playerId}/`, { method: 'POST', headers: { 'X-CSRFToken': '{{ csrf_token }}' } })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    listItem.remove();
+                } else {
+                    alert("Failed to remove player.");
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}

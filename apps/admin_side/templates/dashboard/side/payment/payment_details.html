@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+{% block extra_css %}
+    <style xmlns="http://www.w3.org/1999/html">
+    </style>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+{% endblock %}
+{% block page_title %}
+    Payments
+{% endblock %}
+{% block content %}
+
+    
+    <div class="container-fluid">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Payment Records</h5>
+                <input type="text" id="searchInput" class="form-control w-25" placeholder="Search Payment">
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead class="table">
+                            <tr>
+                                <th scope="col"><b>Payment Id</b></th>
+                                <th scope="col"><b>User</b></th>
+                                <th scope="col"><b>Amount</b></th>
+                                <th scope="col"><b>Date</b></th>
+                                <th scope="col"><b>Satus</b></th>
+                                <th scope="col"><b>Action</b></th>
+                            </tr>
+                        </thead>
+                        <tbody id="paymentTable">
+                            {% if add_fund_payment %}
+                                {% for details in add_fund_payment %}
+                                <tr>
+                                    <td>PickleITPay{{ details.id }}</td>
+                                    <td>{{ details.user.first_name }} {{ details.user.last_name }}</td>
+                                    <td>${{ details.amount }}</td>
+                                    <td>{{ details.payment_date }}</td>
+                                    <td>{{ details.status }}</td>
+                                    <td><a class="btn btn-primary btn-sm">View</a></td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="5" class="text-center text-danger">No Payment Record Found</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+    document.getElementById("searchInput").addEventListener("keyup", function() {
+        let filter = this.value.toLowerCase();
+        let rows = document.querySelectorAll("#paymentTable tr");
+    
+        rows.forEach(row => {
+            let text = row.textContent.toLowerCase();
+            row.style.display = text.includes(filter) ? "" : "none";
+        });
+    });
+    </script>
+        
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    
+    {% endblock %}
