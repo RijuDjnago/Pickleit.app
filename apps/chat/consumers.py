@@ -459,6 +459,8 @@ def get_chat_users_with_last_message(user):
             chat_data.append({
                 "user_id": other_user.id,  # This should refer to the User instance
                 "uuid": str(other_user.uuid),  # Ensure UUID is included
+                "secret_key": str(other_user.secret_key),
+                "email": str(other_user.email),
                 "first_name": other_user.first_name,
                 "last_name": other_user.last_name,
                 "room": room.name,

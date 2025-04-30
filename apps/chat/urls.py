@@ -21,4 +21,7 @@ urlpatterns = [
     path('90b91c2d3d44924670acbb2485e4e54847eab86c14b94202bb5fc4a2e79f446b/', views.mark_msgs_as_read, name='mark_msgs_as_read'),
     path('ea7f409b7bec1b4d9c81f346a3aa4320dde219fd9b52287caa649259587c4366/', views.get_room_user_status, name='get_room_user_status'),
 
+
+    path('get_user_search/', views.get_user_search, name="get_user_search"),
+
 ]

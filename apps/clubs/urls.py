@@ -29,4 +29,14 @@ urlpatterns = [
     
     ###search club location and keyword wise
     path("search-clubs/", ClubSearchAPIView.as_view(), name="search-clubs"),
+
+
+    #dashboard api
+    path("weekly_booking_details/", weekly_booking_details, name="weekly_booking_details"),
+    path("weekly_join_details/", weekly_join_details, name="weekly_join_details"),
+    path("club_transection_list/", club_transection_list, name="club_transection_list"),
+
+    #scanning qr code
+    path("club_qr_code_scanning/", club_qr_code_scanning, name="club_qr_code_scanning"),
+
 ]

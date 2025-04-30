@@ -107,9 +107,6 @@ class Player(models.Model):
         return f"{self.player_full_name}, {self.player_email}, {self.player_phone_number}"
 
   
-
-
-
 class LeaguesTeamType(models.Model):
     ''' Women // Men // Co-ed '''
     uuid = models.UUIDField(default=uuid.uuid4)
