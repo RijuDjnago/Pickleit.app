@@ -85,9 +85,10 @@ urlpatterns = [
 
 
     #subcription
-    #subcription model
     path('validate-iap/', views2.validate_iap, name='validate_iap'),
     path('subscription-plans/', views2.get_subscription_plans, name='get_subscription_plans'),
+    path('next-plans/', views2.get_next_plans, name='get_next_plans'),
+    path('get_user_subcription_permition/', views2.get_user_subcription_permition, name="get_user_subcription_permition"),
 
     # twillo 
     path("send-otp/",  views3.SendOTPView.as_view(), name="send-otp"),

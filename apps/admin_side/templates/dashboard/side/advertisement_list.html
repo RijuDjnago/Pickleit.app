@@ -42,7 +42,7 @@
                             <th class="h5 font-weight-bold text-center">url</th>
                             <th class="h5 font-weight-bold text-center">Start date</th>
                             <th class="h5 font-weight-bold text-center">End date</th>
-                            <th class="h5 font-weight-bold text-center">Approved by admin</th>
+                            <th class="h5 font-weight-bold text-center">Status</th>
                             <th class="h5 font-weight-bold text-center">Created at</th>
                             <th class="h5 font-weight-bold text-center">Created by</th>
                             <th class="h5 font-weight-bold text-center">Action</th>
@@ -57,14 +57,22 @@
                             <td><a href="{{ad.url}}">{{ad.url}}</a></td>
                             <td>{{ad.start_date}}</td>
                             <td>{{ad.end_date}}</td>
-                            <td>{{ad.approved_by_admin}}</td>
+                            <td>{{ad.admin_approve_status}}</td>
                             <td>{{ad.created_at}}</td>
                             <td>{{ad.created_by__username}}</td>
                             <td>
                                 <div class="btn-group" role="group" aria-label="Advertisement Actions" style="margin-bottom: 0;">
                                 <a href="/admin/advertisement_view_/{{ad.id}}/" class="btn btn-primary" ><i class="fas fa-eye"></i></a>
-                                <a href="/admin/advertisement_approve_/{{ad.id}}/" class="btn btn-success"><i class="fas fa-check"></i></a>
-                                <a href="/admin/advertisement_reject_/{{ad.id}}/" class="btn btn-danger"><i class="fas fa-times"></i></a>
+                                {% if ad.admin_approve_status == "Pending" %}
+                                    <a href="/admin/advertisement_approve_/{{ad.id}}/" class="btn btn-success"><i class="fas fa-check"></i></a>
+                                {% endif %}
+                                {% if ad.admin_approve_status == "Rejected" %}
+                                    
+                                {% endif %}
+                                {% if ad.admin_approve_status == "Approved" %}
+                                    <a href="/admin/advertisement_reject_/{{ad.id}}/" class="btn btn-danger"><i class="fas fa-times"></i></a>
+                                {% endif %}
+                                
                                 </div>
                             </td>
                             

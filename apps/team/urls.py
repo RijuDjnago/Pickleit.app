@@ -1,38 +1,35 @@
 from django.urls import path
-from apps.team import views, eventview
+from apps.team import views, eventview, openplayview
 
 
 urlpatterns = [
 
-    #map api
-    #old
-    path('c9a15248f417c7d4d0b824e22df96120d8c674480928e4024903445df90d30f5/', views.all_map_data, name="all_map_data"),
     
-    #map api
-    #new
+    #old unuse
+    path('c9a15248f417c7d4d0b824e22df96120d8c674480928e4024903445df90d30f5/', views.all_map_data, name="all_map_data"),
     path('2bdfe77479df1fc79e49e2939ce0a0a8018d4d94f13d7288d4ed79f4b2a96cf8/', views.all_map_data_new, name="all_map_data"),
-
-    # Team Type & Person Type
     path('1963b18359229186f2817624c25bb11c613f9e30b9d2f6f18982064ae2e78d9e/', views.leagues_teamType, name="leagues_teamType"),
     path('8fc896dbad658501526b8f3eca6a4fbba95ea86269d96cd3a71d8d8b9575b1c2/', views.leagues_pesrsonType, name="leagues_pesrsonType"),
-    
-    # Player
     path('30ddee1c070d318b5054521aaaaf3c9a03d938d90c9bdeacadeecdd76cb99554/', views.create_player, name="create_player"),
     path('6223737bd87561d5efc114403fd56771be64b41af5c5c18dda208fb1ecd851e5/', views.view_player, name="view_player"),
+    path('05bb45dd8fd8292f74bdbd04162360d81dfe6a99db3f4dd55c495ac8c474960f/', views.my_player_list, name="my_player_list"),
     path('a04269bd4564a6f973d1a959616a037242d4401b31ceafe8236e7fdaf13d2812/', views.list_player, name="list_player"),
     path('6a502a80130911930674f4a9cede39a383f366a684fdf667d26eed49c048e321/', views.email_send_for_create_user, name="email_send_for_create_user"),
     path('08d664c5b48389500adc8c6f8d5f8aa2150ce8eec29fbab7b9630025cdaaa055/', views.edit_player, name="edit_player"), #new add
     path('0951b1ba7bfb43562d3ce1f377ed776bffce89092cc63baa75115723bfde4592/', views.delete_player, name="create_player"), #new add
+    
+
+    #use player api
     path('c6d9792e19b52f2ffb961097f6385e430f668b1dccf46514f900cae955757390/', views.player_list_using_pagination, name="player_list_using_pagination"),
-    path('05bb45dd8fd8292f74bdbd04162360d81dfe6a99db3f4dd55c495ac8c474960f/', views.my_player_list, name="my_player_list"),
     path('65070ddb7cef7ff13931e8f3202c93975737469c1e43dc76d6f9ce53bd8d1460/', views.player_profile_details, name="player_profile_details"),
     path('a70163a6be1c608c5975eaf63d680cff6e2dedf945d17871a421500b5cf1f926/', views.player_team_details, name="player_team_details"),
     path('8bfc54fa62aded9ebe0417313eb7e8d3de990e7775ab8de2551ebe8db4f1928f/', views.player_match_statistics, name='player_match_statistics'),
     
-    # Team
+    #use team api
     path('6b0bfb8e6263728c6b3d3f9224fd5f6f968d7c6d1b02fb4a84503f9c384bbdd8/', views.create_team, name="create_team"),
-    path('a055a65f599d3d65289630efd48729d4376b3664b13b5d58ed1d18f664322af2/', views.team_list, name="team_list"),
+    
     path('b7c8cb48779da0733ab972fd456a7bc35999b2732258c671a4c00cc9e5e111ab/', views.edit_team, name="edit_team"),
+    path('a055a65f599d3d65289630efd48729d4376b3664b13b5d58ed1d18f664322af2/', views.team_list, name="team_list"),
     path('29479d6589f748706e3fe02759c14de16aba6335ecc51889c4c3ff89d7c35c9d/', views.team_view, name="team_view"),
     path('cf473ee6b572066a6fab74e03ae862a8068649b12524dcef808a647078fbe887/', views.delete_team, name="delete_team"),
     path('3d0c1cc9660d3c13a543d73325f853f764a8b912631928a8f113a1eda6d3b945/', views.team_list_using_pagination, name="team_list_using_pagination"),
@@ -128,13 +125,18 @@ urlpatterns = [
     path('bb4219c7c842ce05582d6a9a7559e85124ff568beff9921c97ddb4ac87f003a5/', views.get_tournament_count, name="get_tournament_count"),
     path('70a46284ef37448a8d477477c2bdf695245a8a36c4b39ed043409e7bb3bc56bb/', views.get_leagues_list, name="get_leagues_list"),
     path('2d78919ac3a46548aff39f6c752625ef04c5b5c9cd3d96a2c7c6672f6d971b8a/', views.get_final_match_details, name="get_final_match_details"),   
-
     path('3e5b33694f6e108577e2851e41560cd5c4ce086dd3be909ba25a70cee25e6ba5/', views.home_page_stats_count, name='home_page_stats_count'),
     path('cc9d582d2d1e2dfc03f73e42ea852568fe84be5633a612f26b825f6b766af9cd/', views.search_players_by_location, name='search_players_by_location'),
     path('6a09d24155380583d67da88843a134c836f45e211b15c9c64a0a9c8ff4cedd06/', views.search_tournaments_by_location, name='search_tournaments_by_location'),
 
 
-    
+    path('41fba389cb3d9e5671f82c46fd21530cdf87278065a517afde48f88f9f0ef808/', openplayview.team_list_open_play, name="team_list_open_play"),
+    path('f0f876c1f0aa814e3823f6ee0a5fa004b5367ff8723129e14328691422c88e07/', openplayview.search_invite_player_for_open_play, name="search_invite_player_for_open_play"),
+    path('0f5b58c9418cc8cc060a277feb9ff29bf37fb17a16e181f738aed92cd0afc8bb/', openplayview.create_open_play_event_randomize, name="create_open_play_event_randomize"),
+    path('0ec0e470fbbffd7352f83e916bc897a6445fe4201063e3734854d3bda9e11380/', openplayview.view_open_play_join_user_list, name='view_open_play_join_user_list'),
+    path('ac12f7b1fc9b82cc3038b8fe83f7e0c358ff24d86d4af7f41780414f4351a47a/', openplayview.create_selected_user_team, name="create_selected_user_team"),
+    path('e20e1bcdede400f8fd0e66decd64c70ad0b7f1deca57517274d3b09f7c7fd57b/', openplayview.show_invitation_list, name="show_invitation_list"),
+    path('feb5c9ed25c6a104214cf60b52dbaf0caf3d6034786710a49cb94bdacf25ad90/', openplayview.response_invitation, name="response_invitation"),
     # path('2cd8270498d1c7c5e6cef1d06c0b1fb6862d85fedd79afab7bddccfeb3f1713b/', views.filter_player_by_gender_and_rank, name='filter_player_by_gender_and_rank'),
     # path('794db4f35795a58cfbf824d126c56ae1fdae5db680a0f16211be475eb517247b/', views.filter_team, name='filter_team'),
 ]

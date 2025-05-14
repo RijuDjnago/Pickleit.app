@@ -20,8 +20,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.getenv('SECRET_KEY')
 
-STRIPE_PUBLIC_KEY = os.getenv('STRIPE_PUBLIC_KEY')
-STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
+STRIPE_PUBLIC_KEY = 'pk_test_ceE9AJ99mz5febdoTmcq5C38'
+STRIPE_SECRET_KEY = 'sk_test_Uw0pOrG2d2LwQT18Ielu6Gqk'
 
 # S3 Bucket credentials
 ACCESS_KEY_ID = os.getenv('ACCESS_KEY_ID')
@@ -37,8 +37,9 @@ EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS')
 EMAIL_PORT = os.getenv('EMAIL_PORT')
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
-PROTOCALL = 'https'
-SITE_URL = 'https://dev.pickleit.app/user_side'
+PROTOCALL = 'http'
+# SITE_URL = 'https://dev.pickleit.app/user_side'
+SITE_URL = 'http://127.0.0.1:8000/user_side'
 CLUB_PERCENTAGE = 90
 ADMIN_PERCENTAGE_CLUB = 10
 DEBUG = True

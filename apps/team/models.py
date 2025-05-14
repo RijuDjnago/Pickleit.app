@@ -58,6 +58,8 @@ PLAY_TYPE =(
     ("Round Robin", "Round Robin"),
     ("Single Elimination", "Single Elimination"),
     ("Individual Match Play", "Individual Match Play"),
+    ("Round Robin Compete to Final", "Round Robin Compete to Final"),
+    ("Robin Randomizer", "Robin Randomizer"),
 )
 
 class Team(models.Model):
@@ -105,6 +107,8 @@ class Player(models.Model):
 
     def __str__(self) :
         return f"{self.player_full_name}, {self.player_email}, {self.player_phone_number}"
+
+
 
   
 class LeaguesTeamType(models.Model):
@@ -373,3 +377,13 @@ class TournamentScoreReport(models.Model):
     def __str__(self):
         return f'{self.tournament.leagues.name} - {self.tournament.match_number}'   
 
+
+class OpenPlayInvitation(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='open_play_invitation_user')
+    event = models.ForeignKey(Leagues, on_delete=models.CASCADE, related_name='open_play_event')
+    invited_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='invited_by_user')
+    status = models.CharField(max_length=255, choices=(('Accepted', 'Accepted'), ('Declined', 'Declined'), ('Pending', 'Pending')), default='Pending')
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+
+    def __str__(self):
+        return f'{self.user.first_name} - {self.event} - {self.invited_by.first_name} - {self.status}'   

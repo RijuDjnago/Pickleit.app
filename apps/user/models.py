@@ -1,6 +1,7 @@
 from django.db import models
 import uuid
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
+from apps import user
 from phonenumber_field.modelfields import PhoneNumberField
 from django.dispatch import receiver
 from django.db.models.signals import post_save
@@ -520,6 +521,8 @@ class SubscriptionPlan(models.Model):
 
     def __str__(self):
         return f"{self.name} - ${self.price} - {self.platform}"
+    
+
 
 
 class Transaction(models.Model):
@@ -545,9 +548,6 @@ class Transaction(models.Model):
     def __str__(self):
         return f"{self.user.username} - {self.plan.name} ({self.status})"
 
-
-
-
 class Subscription(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     plan = models.ForeignKey(SubscriptionPlan, on_delete=models.SET_NULL, null=True)
@@ -571,6 +571,9 @@ class Subscription(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.plan.name} (Expires: {self.end_date.date()})"
+
+
+    
 
 role_call = [('viewer', 'viewer'),('admin', 'admin')]
 

@@ -12,22 +12,15 @@ from apps.user.models import *
 from apps.chat.models import *
 from apps.team.models import *
 from apps.user.helpers import *
+from django.db.models import Q
 from apps.team.serializers import *
 from apps.pickleitcollection.models import *
-
 from django.conf import settings
 from django.utils import timezone
-from django.core.cache import cache
-from django.core.mail import send_mail
-from django.forms.models import model_to_dict
-from django.contrib.auth.hashers import make_password 
 from django.shortcuts import render, get_object_or_404
 from django.core.cache.backends.base import DEFAULT_TIMEOUT
-from django.db.models.functions import Cast, Concat, TruncMonth
-from django.db.models import Avg, Sum, Count, Value, F, Q, Case, When, IntegerField, FloatField, CharField, ExpressionWrapper
-
 from rest_framework.response import Response
-from rest_framework import serializers, status
+from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.pagination import PageNumberPagination
 
@@ -258,407 +251,181 @@ def list_leagues_admin(request):
     data = {'status':'','data':'','message':''}
     try:        
         user_uuid = request.GET.get('user_uuid')
-        user_secret_key = request.GET.get('user_secret_key')
-        filter_by = request.GET.get('filter_by')
+        filter_by = request.GET.get('filter_by', None)
         search_text = request.GET.get('search_text')
         '''
         registration_open, future, past
         '''
-        leagues = []
-        check_user = User.objects.filter(uuid=user_uuid,secret_key=user_secret_key)
+        user = get_object_or_404(User, uuid=user_uuid)
         today_date = datetime.now()
-        if check_user.exists() and check_user.first().is_admin:
-            if search_text:
-               all_leagues = Leagues.objects.filter(Q(name__icontains=search_text) & Q(is_created=True)).order_by('-id')
-            else:
-                all_leagues = Leagues.objects.filter(is_created=True).order_by('-id')
-            
-            if filter_by == "future" :
-                all_leagues = all_leagues.filter(Q(registration_start_date__date__lte=today_date, registration_end_date__date__gte=today_date) | Q(registration_start_date__date__gte=today_date))
-            elif filter_by == "past" :
-                all_leagues = all_leagues.filter(leagues_end_date__date__lte=today_date, is_complete=True)
-            elif filter_by == "registration_open" :
-                all_leagues = all_leagues.filter(leagues_start_date__date__lte=today_date, leagues_end_date__date__gte=today_date, is_complete=False)
-                
-            
-            elif filter_by == "registration_open_date" :
-                all_leagues = all_leagues.filter(leagues_start_date__date__lte=today_date, leagues_end_date__date__gte=today_date, is_complete=False).order_by("leagues_start_date")
-            elif filter_by == "registration_open_name" :
-                all_leagues = all_leagues.filter(leagues_start_date__date__lte=today_date, leagues_end_date__date__gte=today_date, is_complete=False).order_by("name")
-            elif filter_by == "registration_open_city" :
-                all_leagues = all_leagues.filter(leagues_start_date__date__lte=today_date, leagues_end_date__date__gte=today_date, is_complete=False).order_by("city")
-            elif filter_by == "registration_open_state" :
-                all_leagues = all_leagues.filter(leagues_start_date__date__lte=today_date, leagues_end_date__date__gte=today_date, is_complete=False).order_by("state")
-            elif filter_by == "registration_open_country" :
-                all_leagues = all_leagues.filter(leagues_start_date__date__lte=today_date, leagues_end_date__date__gte=today_date, is_complete=False).order_by("country")
+        
+        events = Leagues.objects.exclude(team_type__name ='Open-team')
+        if filter_by == "future" :
+            events = events.filter(Q(registration_start_date__date__lte=today_date, registration_end_date__date__gte=today_date) | Q(registration_start_date__date__gte=today_date))
+        elif filter_by == "past" :
+            events = events.filter(leagues_end_date__date__lte=today_date, is_complete=True)
+        elif filter_by == "registration_open" :
+            events = events.filter(leagues_start_date__date__lte=today_date, leagues_end_date__date__gte=today_date, is_complete=False)
+        if search_text:
+            events = events.filter(Q(name__icontains=search_text) & Q(is_created=True)).order_by('-id')
 
-            else:
-                all_leagues = all_leagues
-            leagues = all_leagues.values('id','uuid','secret_key','name','location','leagues_start_date','leagues_end_date',
+        events_list = events.values('id','uuid','secret_key','name','location','leagues_start_date','leagues_end_date',
                                'registration_start_date','registration_end_date','team_type__name','team_person__name','any_rank','start_rank','end_rank',
                                "street","city","state","postal_code","country","complete_address","latitude","longitude","image", "others_fees", "league_type","registration_fee")
-            output = []
 
-            # Grouping data by 'name'
-            grouped_data = {}
-            for item in list(leagues):
-                item["is_reg_diable"] = True
-                match_ = Tournament.objects.filter(leagues_id=item["id"]).values()
-                if match_.exists():
-                    item["is_reg_diable"] = False
-                le = Leagues.objects.filter(id=item["id"]).first()
-                reg_team =le.registered_team.all().count()
-                max_team = le.max_number_team
-                if max_team <= reg_team:
-                    item["is_reg_diable"] = False
-                key = item['name']
-                if key not in grouped_data:
-                    grouped_data[key] = {
-                                        'name': item['name'], 
-                                        'lat':item['latitude'], 
-                                        'long':item["longitude"],
-                                        'registration_start_date':item["registration_start_date"],
-                                        'registration_end_date':item["registration_end_date"],
-                                        'leagues_start_date':item["leagues_start_date"],
-                                        'leagues_end_date':item["leagues_end_date"],
-                                        'location':item["location"],
-                                        'image':item["image"],
-                                        'type': [item['team_type__name']], 
-                                        'data': [item]
-                                        }
-                else:
-                    grouped_data[key]['type'].append(item['team_type__name'])
-                    grouped_data[key]['data'].append(item)
-
-            # Building the final output
-            for key, value in grouped_data.items():
-                output.append(value)
-
-            # print(output)
-            leagues = output
-            
-            data["status"], data['data'], data["message"] = status.HTTP_200_OK, leagues, "League data"
-        elif check_user.exists():
-            if search_text:
-               all_leagues = Leagues.objects.filter(is_created=True).filter(Q(name__icontains=search_text)).exclude(play_type = "Individual Match Play").order_by('-id')
+        output = []
+        grouped_data = {}
+        for item in list(events_list):
+            item["is_reg_diable"] = True
+            match_ = Tournament.objects.filter(leagues_id=item["id"]).values()
+            if match_.exists():
+                item["is_reg_diable"] = False
+            le = Leagues.objects.filter(id=item["id"]).first()
+            reg_team =le.registered_team.all().count()
+            max_team = le.max_number_team
+            if max_team <= reg_team:
+                item["is_reg_diable"] = False
+            key = item['name']
+            if key not in grouped_data:
+                grouped_data[key] = {
+                                    'name': item['name'], 
+                                    'lat':item['latitude'], 
+                                    'long':item["longitude"],
+                                    'registration_start_date':item["registration_start_date"],
+                                    'registration_end_date':item["registration_end_date"],
+                                    'leagues_start_date':item["leagues_start_date"],
+                                    'leagues_end_date':item["leagues_end_date"],
+                                    'location':item["location"],
+                                    'image':item["image"],
+                                    'type': [item['team_type__name']], 
+                                    'data': [item]
+                                    }
             else:
-                all_leagues = Leagues.objects.filter(is_created=True).exclude(play_type = "Individual Match Play").order_by('-id')
-            if filter_by == "future" :
-                all_leagues = all_leagues.filter(Q(registration_start_date__date__lte=today_date, registration_end_date__date__gte=today_date) | Q(registration_start_date__date__gte=today_date))
-            elif filter_by == "past" :
-                all_leagues = all_leagues.filter(leagues_end_date__date__lte=today_date, is_complete=True)
-            elif filter_by == "registration_open" :
-                all_leagues = all_leagues.filter(leagues_start_date__date__lte=today_date, leagues_end_date__date__gte=today_date, is_complete=False)
-            
-            elif filter_by == "registration_open_date" :
-                all_leagues = all_leagues.filter(leagues_start_date__date__lte=today_date, leagues_end_date__date__gte=today_date, is_complete=False).order_by("leagues_start_date")
-            elif filter_by == "registration_open_name" :
-                all_leagues = all_leagues.filter(leagues_start_date__date__lte=today_date, leagues_end_date__date__gte=today_date, is_complete=False).order_by("name")
-            elif filter_by == "registration_open_city" :
-                all_leagues = all_leagues.filter(leagues_start_date__date__lte=today_date, leagues_end_date__date__gte=today_date, is_complete=False).order_by("city")
-            elif filter_by == "registration_open_state" :
-                all_leagues = all_leagues.filter(leagues_start_date__date__lte=today_date, leagues_end_date__date__gte=today_date, is_complete=False).order_by("state")
-            elif filter_by == "registration_open_country" :
-                all_leagues = all_leagues.filter(leagues_start_date__date__lte=today_date, leagues_end_date__date__gte=today_date, is_complete=False).order_by("country")
-            
-            else:
-                all_leagues = all_leagues
-            leagues = all_leagues.values('id','uuid','secret_key','name','location','leagues_start_date','leagues_end_date',
-                               'registration_start_date','registration_end_date','team_type__name','team_person__name','any_rank','start_rank','end_rank',
-                               "street","city","state","postal_code","country","complete_address","latitude","longitude","image","others_fees", "league_type","registration_fee")
-            inditour_data = []
-                       
-            get_user = check_user.first()
-            
-            if get_user.is_player:
-                get_player = Player.objects.filter(player=get_user).first()
-                team_list = list(get_player.team.all().values_list("id", flat=True))
-                individual_match =  Leagues.objects.filter(is_created=True).filter(play_type = "Individual Match Play")
-                # individual_match_values = individual_match.values('id','uuid','secret_key','name','location','leagues_start_date','leagues_end_date',
-                #                'registration_start_date','registration_end_date','team_type__name','team_person__name',
-                #                "street","city","state","postal_code","country","complete_address","latitude","longitude","image","others_fees", "league_type","registration_fee","registered_team")
-               
-                # print(team_list)
-                
-                for tour in individual_match:
-                    team_list2 = list(tour.registered_team.all().values_list("id", flat=True))
-                    for team_id in team_list2:
-                        if team_id in team_list:
-                            tour_data = {
-                                'id': tour.id,
-                                'uuid': tour.uuid,
-                                'secret_key': tour.secret_key,
-                                'name': tour.name,
-                                'location': tour.location,
-                                'leagues_start_date': tour.leagues_start_date,
-                                'leagues_end_date': tour.leagues_end_date,
-                                'registration_start_date': tour.registration_start_date,
-                                'registration_end_date': tour.registration_end_date,
-                                'team_type__name': tour.team_type.name,
-                                'team_person__name': tour.team_person.name,
-                                "street": tour.street,
-                                "city": tour.city,
-                                "state": tour.state,
-                                "postal_code": tour.postal_code,
-                                "country": tour.country,
-                                "complete_address": tour.complete_address,
-                                "latitude": tour.latitude,
-                                "longitude": tour.longitude,
-                                # "image": tour.image,
-                                "others_fees": tour.others_fees,
-                                "league_type": tour.league_type,
-                                "registration_fee": tour.registration_fee,
-                                
-                            }
-                            if tour.image:
-                                tour_data["image"] = tour.image
-                            else:
-                                tour_data["image"] = None
-                            registered_team = tour.registered_team.all().values_list("id", flat=True)
-                            team1_id = registered_team[0]
-                            players = Player.objects.filter(team__id=team1_id)
-                            team1_players = []
-                            for player in players:
-                                player_name = f"{player.player.first_name} {player.player.last_name}"
-                                team1_players.append(player_name)
-                            tour_data["team_1_players"] = team1_players
-                            team2_id = registered_team[1]
-                            players = Player.objects.filter(team__id=team2_id)
-                            team2_players = []
-                            for player in players:
-                                player_name = f"{player.player.first_name} {player.player.last_name}"
-                                team2_players.append(player_name)
-                            tour_data["team_2_players"] = team2_players
-                            inditour_data.append(tour_data)
-                        else:
-                            pass
-                           
-            
-            sorted_data = sorted(inditour_data, key=lambda x: x['id'], reverse=True)
+                grouped_data[key]['type'].append(item['team_type__name'])
+                grouped_data[key]['data'].append(item)
 
-            # Initialize an empty list to store unique dictionaries
-            unique_dicts = []
+        # Building the final output
+        for key, value in grouped_data.items():
+            output.append(value)
 
-            # Iterate over the sorted list and remove duplicates
-            prev_id = None
-            for d in sorted_data:
-                if d['id'] != prev_id:
-                    unique_dicts.append(d)
-                    prev_id = d['id']
-            
-            leagues = list(leagues) + unique_dicts
-            
-            
-            output = []
-            grouped_data = {}
-            for item in list(leagues):
-                item["is_reg_diable"] = True
-                match_ = Tournament.objects.filter(leagues_id=item["id"]).values()
-                if match_.exists():
-                    item["is_reg_diable"] = False
-                le = Leagues.objects.filter(id=item["id"],  ).first()
-                reg_team =le.registered_team.all().count()
-                max_team = le.max_number_team
-                if max_team <= reg_team:
-                    item["is_reg_diable"] = False
-                key = item['name']
-                if key not in grouped_data:
-                    grouped_data[key] = {
-                                        'name': item['name'], 
-                                        'lat':item['latitude'], 
-                                        'long':item["longitude"],
-                                        'registration_start_date':item["registration_start_date"],
-                                        'registration_end_date':item["registration_end_date"],
-                                        'leagues_start_date':item["leagues_start_date"],
-                                        'leagues_end_date':item["leagues_end_date"],
-                                        'location':item["location"],
-                                        'image':item["image"],
-                                        'type': [item['team_type__name']], 
-                                        'data': [item]
-                                        }
-                else:
-                    grouped_data[key]['type'].append(item['team_type__name'])
-                    grouped_data[key]['data'].append(item)
+        # print(output)
+        events_list = output
 
-            # Building the final output
-            for key, value in grouped_data.items():
-                output.append(value)
+        for item in events_list:
+            item["data"] = sorted(item["data"], key=lambda x: x["id"], reverse=True)
 
-            # print(output)
-            leagues = output 
-            for item in leagues:
-                item["data"] = sorted(item["data"], key=lambda x: x["id"], reverse=True)
-
-            # Sort the main list based on the 'id' of the first item in the 'data' list
-            leagues_sorted = sorted(leagues, key=lambda x: x["data"][0]["id"], reverse=True)     
-            paginator = PageNumberPagination()
-            paginator.page_size = 5 
-            result_page = paginator.paginate_queryset(leagues_sorted, request)    
-            paginated_response = paginator.get_paginated_response(result_page)    
-            data["status"] = status.HTTP_200_OK
-            data["count"] = paginated_response.data["count"]
-            data["previous"] = paginated_response.data["previous"]
-            data["next"] = paginated_response.data["next"]
-            data["data"] = paginated_response.data["results"]
-            data["message"] = "Data found"     
-            # data["status"], data['data'], data["message"] = status.HTTP_200_OK, leagues_sorted,"Data found"
-        else:
-            data["count"] = 0
-            data["previous"] = None
-            data["next"] = None
-            data["data"] = []
-            data['status'] = status.HTTP_401_UNAUTHORIZED
-            data["message"] = "User not found."
-    except Exception as e :
-        data["count"] = 0
+        # Sort the main list based on the 'id' of the first item in the 'data' list
+        leagues_sorted = sorted(events_list, key=lambda x: x["data"][0]["id"], reverse=True)     
+        paginator = PageNumberPagination()
+        paginator.page_size = 5 
+        result_page = paginator.paginate_queryset(leagues_sorted, request)    
+        paginated_response = paginator.get_paginated_response(result_page)    
+        data["status"] = status.HTTP_200_OK
+        data["count"] = paginated_response.data["count"]
+        data["previous"] = paginated_response.data["previous"]
+        data["next"] = paginated_response.data["next"]
+        data["data"] = paginated_response.data["results"]
+        data["message"] = "Data found" 
+        return Response(data)
+    except Exception as e:
+        data["status"] = status.HTTP_200_OK
+        data["count"] = None
         data["previous"] = None
         data["next"] = None
         data["data"] = []
-        data['status'] = status.HTTP_400_BAD_REQUEST
-        data['message'] = f"{e}"
-    return Response(data)
-
+        data["message"] = str(e) 
+        return Response(data)
+            
 
 @api_view(('GET',))
 def my_league(request):
     data = {'status':'','data':[], 'message':''}
     try:
         user_uuid = request.GET.get('user_uuid')
-        user_secret_key = request.GET.get('user_secret_key')
+        filter_by = request.GET.get('filter_by', None)
         search_text = request.GET.get('search_text')
-        filter_by = request.GET.get('filter_by')
-        check_user = User.objects.filter(secret_key=user_secret_key,uuid=user_uuid)
+        '''
+        registration_open, future, past
+        '''
+        user = get_object_or_404(User, uuid=user_uuid)
         today_date = datetime.now()
-        if check_user.exists():
-            get_user = check_user.first()
-            all_leagues = Leagues.objects.filter(Q(is_created=True) &(Q(created_by=get_user) | Q(add_organizer=get_user))).exclude(play_type = "Individual Match Play").order_by('-id')
-            if search_text:
-                all_leagues = all_leagues.filter(name__icontains=search_text)
-            else:
-                all_leagues = all_leagues
-            
-            if filter_by == "future" :
-                all_leagues = all_leagues.filter(Q(registration_start_date__date__lte=today_date, registration_end_date__date__gte=today_date) | Q(registration_start_date__date__gte=today_date))
-            elif filter_by == "past" :
-                all_leagues = all_leagues.filter(leagues_end_date__date__lte=today_date, is_complete=True)
-            elif filter_by == "registration_open" :
-                all_leagues = all_leagues.filter(leagues_start_date__date__lte=today_date, leagues_end_date__date__gte=today_date, is_complete=False)
-            all_leagues = all_leagues.distinct()    
-            leagues = all_leagues.values('id','uuid','secret_key','name','location','leagues_start_date','leagues_end_date',
-                                'registration_start_date','registration_end_date','team_type__name','team_person__name','any_rank','start_rank','end_rank',
-                                "street","city","state","postal_code","country","complete_address","latitude","longitude","image","others_fees", "league_type","registration_fee")
-            
-            inditour_data = []
-            individual_match = []
-            if get_user.is_player:
-                get_player = Player.objects.filter(player=get_user).first()
-                team_list = list(get_player.team.all().values_list("id", flat=True))
-                individual_match =  Leagues.objects.filter(is_created=True, created_by=get_user, play_type="Individual Match Play")
-                
-            for tour in individual_match:
-                team_list2 = list(tour.registered_team.all().values_list("id", flat=True))
-                for team_id in team_list2:
-                    if team_id in team_list:
-                        tour_data = {
-                            'id': tour.id,
-                            'uuid': tour.uuid,
-                            'secret_key': tour.secret_key,
-                            'name': tour.name,
-                            'location': tour.location,
-                            'leagues_start_date': tour.leagues_start_date,
-                            'leagues_end_date': tour.leagues_end_date,
-                            'registration_start_date': tour.registration_start_date,
-                            'registration_end_date': tour.registration_end_date,
-                            'team_type__name': tour.team_type.name,
-                            'team_person__name': tour.team_person.name,
-                            "street": tour.street,
-                            "city": tour.city,
-                            "state": tour.state,
-                            "postal_code": tour.postal_code,
-                            "country": tour.country,
-                            "complete_address": tour.complete_address,
-                            "latitude": tour.latitude,
-                            "longitude": tour.longitude,
-                            "others_fees": tour.others_fees,
-                            "league_type": tour.league_type,
-                            "registration_fee": tour.registration_fee,
-                            
-                        }
-                        if tour.image:
-                            tour_data["image"] = tour.image
-                        else:
-                            tour_data["image"] = None
-                        registered_team = tour.registered_team.all().values_list("id", flat=True)
-                        team1_id = registered_team[0]
-                        players = Player.objects.filter(team__id=team1_id)
-                        team1_players = []
-                        for player in players:
-                            player_name = f"{player.player.first_name} {player.player.last_name}"
-                            team1_players.append(player_name)
-                        tour_data["team_1_players"] = team1_players
-                        team2_id = registered_team[1]
-                        players = Player.objects.filter(team__id=team2_id)
-                        team2_players = []
-                        for player in players:
-                            player_name = f"{player.player.first_name} {player.player.last_name}"
-                            team2_players.append(player_name)
-                        tour_data["team_2_players"] = team2_players
-                        inditour_data.append(tour_data)
-                    else:
-                        pass
-                                        
-            sorted_data = sorted(inditour_data, key=lambda x: x['id'], reverse=True)
-            unique_dicts = []
-            prev_id = None
-            for d in sorted_data:
-                if d['id'] != prev_id:
-                    unique_dicts.append(d)
-                    prev_id = d['id']            
-            leagues = list(leagues) + unique_dicts            
-            output = []
-            grouped_data = {}
-            for item in list(leagues):
-                item["is_reg_diable"] = True
-                match_ = Tournament.objects.filter(leagues_id=item["id"]).values()
-                if match_.exists():
-                    item["is_reg_diable"] = False
-                le = Leagues.objects.filter(id=item["id"],  ).first()
-                reg_team =le.registered_team.all().count()
-                max_team = le.max_number_team
-                if max_team <= reg_team:
-                    item["is_reg_diable"] = False
-                key = item['name']
-                if key not in grouped_data:
-                    grouped_data[key] = {
-                                        'name': item['name'], 
-                                        'lat':item['latitude'], 
-                                        'long':item["longitude"],
-                                        'registration_start_date':item["registration_start_date"],
-                                        'registration_end_date':item["registration_end_date"],
-                                        'leagues_start_date':item["leagues_start_date"],
-                                        'leagues_end_date':item["leagues_end_date"],
-                                        'location':item["location"],
-                                        'image':item["image"],
-                                        'type': [item['team_type__name']], 
-                                        'data': [item]
-                                        }
-                else:
-                    grouped_data[key]['type'].append(item['team_type__name'])
-                    grouped_data[key]['data'].append(item)
-            for key, value in grouped_data.items():
-                output.append(value)
-            leagues = output 
-            for item in leagues:
-                item["data"] = sorted(item["data"], key=lambda x: x["id"], reverse=True)
+        
+        events = Leagues.objects.filter(created_by=user)
+        if filter_by == "future" :
+            events = events.filter(Q(registration_start_date__date__lte=today_date, registration_end_date__date__gte=today_date) | Q(registration_start_date__date__gte=today_date))
+        elif filter_by == "past" :
+            events = events.filter(leagues_end_date__date__lte=today_date, is_complete=True)
+        elif filter_by == "registration_open" :
+            events = events.filter(leagues_start_date__date__lte=today_date, leagues_end_date__date__gte=today_date, is_complete=False)
+        if search_text:
+            events = events.filter(Q(name__icontains=search_text) & Q(is_created=True)).order_by('-id')
 
-            leagues_sorted = sorted(leagues, key=lambda x: x["data"][0]["id"], reverse=True)
-            
-            data['status'], data['data'], data['message'] = status.HTTP_200_OK, leagues_sorted, f"Data found"
-        else:
-            data['status'], data['data'], data['message'] = status.HTTP_400_BAD_REQUEST, [], f"user not found"
-    except Exception as e :
-        data['status'], data['data'], data['message'] = status.HTTP_400_BAD_REQUEST, [], f"{e}"
-    return Response(data)
+        events_list = events.values('id','uuid','secret_key','name','location','leagues_start_date','leagues_end_date',
+                               'registration_start_date','registration_end_date','team_type__name','team_person__name','any_rank','start_rank','end_rank',
+                               "street","city","state","postal_code","country","complete_address","latitude","longitude","image", "others_fees", "league_type","registration_fee")
+
+        output = []
+        grouped_data = {}
+        for item in list(events_list):
+            item["is_reg_diable"] = True
+            match_ = Tournament.objects.filter(leagues_id=item["id"]).values()
+            if match_.exists():
+                item["is_reg_diable"] = False
+            le = Leagues.objects.filter(id=item["id"]).first()
+            reg_team =le.registered_team.all().count()
+            max_team = le.max_number_team
+            if max_team <= reg_team:
+                item["is_reg_diable"] = False
+            key = item['name']
+            if key not in grouped_data:
+                grouped_data[key] = {
+                                    'name': item['name'], 
+                                    'lat':item['latitude'], 
+                                    'long':item["longitude"],
+                                    'registration_start_date':item["registration_start_date"],
+                                    'registration_end_date':item["registration_end_date"],
+                                    'leagues_start_date':item["leagues_start_date"],
+                                    'leagues_end_date':item["leagues_end_date"],
+                                    'location':item["location"],
+                                    'image':item["image"],
+                                    'type': [item['team_type__name']], 
+                                    'data': [item]
+                                    }
+            else:
+                grouped_data[key]['type'].append(item['team_type__name'])
+                grouped_data[key]['data'].append(item)
+
+        # Building the final output
+        for key, value in grouped_data.items():
+            output.append(value)
+
+        # print(output)
+        events_list = output
+
+        for item in events_list:
+            item["data"] = sorted(item["data"], key=lambda x: x["id"], reverse=True)
+
+        # Sort the main list based on the 'id' of the first item in the 'data' list
+        leagues_sorted = sorted(events_list, key=lambda x: x["data"][0]["id"], reverse=True)     
+        paginator = PageNumberPagination()
+        paginator.page_size = 5 
+        result_page = paginator.paginate_queryset(leagues_sorted, request)    
+        paginated_response = paginator.get_paginated_response(result_page)    
+        data["status"] = status.HTTP_200_OK
+        data["count"] = paginated_response.data["count"]
+        data["previous"] = paginated_response.data["previous"]
+        data["next"] = paginated_response.data["next"]
+        data["data"] = paginated_response.data["results"]
+        data["message"] = "Data found" 
+        return Response(data)
+    except Exception as e:
+        data["status"] = status.HTTP_200_OK
+        data["count"] = None
+        data["previous"] = None
+        data["next"] = None
+        data["data"] = []
+        data["message"] = str(e) 
+        return Response(data)
 
 
 #view event apies
@@ -859,6 +626,7 @@ def view_playtype_details(request):
     else:
         data["status"], data["message"] = status.HTTP_404_NOT_FOUND, f"User or league not found."
     return Response(data)
+
 
 
 @api_view(("GET",))
@@ -1950,7 +1718,10 @@ def team_register_user(request):
             check_league = Leagues.objects.filter(uuid=league_uuid, secret_key=league_secret_key)
             if check_league.exists():
                 league = check_league.first()
-                team_type = league.team_type.name
+                if league.team_type.name == "Open-team":
+                    team_type = None
+                else:
+                    team_type = league.team_type.name
                 team_person = league.team_person.name
                 team_data = []
                 
@@ -1965,18 +1736,14 @@ def team_register_user(request):
                     if team.id not in register_team_id_list:
                        is_view = True 
                     # Check if team's type and person type match the league's requirements
-                    if team_type and team.team_type and team_person and team.team_person:
-                        if not (team_type.strip() == team.team_type.strip() and team_person.strip() == team.team_person.strip()):
+                    if team_person and team.team_person:
+                        if team_person.strip() != team.team_person.strip():
                             flg = False
-                            if team_type.strip() != team.team_type.strip():
-                                flg_text = "Team type does not match for this league"
-                            elif team_person.strip() != team.team_person.strip():
-                                flg_text = "Person type does not match for this league"
-                    else:
-                        # Handle the case where team_type or team_person is None
-                        flg = False
-                        flg_text = "Team type or Person type is not provided"
-                    
+                    if team_type and team.team_type:
+                        if team_type.strip() != team.team_type.strip():
+                            flg = False
+
+                        
                     # Retrieve players in the team
                     player_data = Player.objects.filter(team=team).values("player_full_name", "player_ranking", "player__rank")
                     team_rank = 0
@@ -2052,6 +1819,8 @@ def team_register_user(request):
     except Exception as e:
         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, str(e)
     return Response(data)
+
+
 
 @api_view(('GET',))
 def registered_team_for_leauge_list(request):
@@ -2163,9 +1932,12 @@ def register_teams_to_league(request):
 
         total_registered_teams = get_league.registered_team.count()
         today_date = timezone.now()
-        if get_league.registration_end_date < today_date or get_league.max_number_team == total_registered_teams or get_league.is_complete:
-            return Response({"status": status.HTTP_400_BAD_REQUEST,"payement": None, "url":None, "add_amount":None, "message": "Registration is over."})
-
+        if get_league.team_type.name != 'Open-team':
+            if get_league.registration_end_date < today_date or get_league.max_number_team == total_registered_teams or get_league.is_complete:
+                return Response({"status": status.HTTP_400_BAD_REQUEST,"payement": None, "url":None, "add_amount":None, "message": "Registration is over."})
+        else:
+            if get_league.leagues_start_date < today_date :
+                return Response({"status": status.HTTP_400_BAD_REQUEST,"payement": None, "url":None, "add_amount":None, "message": "Registration is over."})
         team_uuid_all = str(team_uuid_all).split(",")
         team_secret_key_all = str(team_secret_key_all).split(",")
         all_team_id = []
@@ -2223,7 +1995,9 @@ def register_teams_to_league(request):
         transactiondetails["event_person_type"] = get_league.team_person.name
         transactiondetails["register_user"] = get_user.id
         transactiondetails["team_details_list"] = team_details_list
-
+        if total_amount == 0:
+           get_league.registered_team.add(*all_team_id) 
+           return Response({"status": status.HTTP_200_OK,"payement": None, "url":None, "add_amount":None, "message": f"You have successfully registered the teams to event {get_league.name}"})
         if balance >= total_amount:
             get_league.registered_team.add(*all_team_id)
 
@@ -2963,7 +2737,7 @@ def assigne_match(request):
                 return Response(data)
         
         #done
-        elif playtype == "Round Robin":
+        elif playtype in ["Round Robin", "Round Robbin Compete to Final" , "Robbin Randomizer"]:
             match_type = playtype
             registered_teams = league.registered_team.all() if league else None
             team_details_list = [team.id for team in registered_teams] if registered_teams else []
@@ -4613,102 +4387,88 @@ def open_play_details(request):
     data = {'status': '', 'data': [], 'message': ''}
     try:
         user_uuid = request.GET.get('user_uuid')
-        user_secret_key = request.GET.get('user_secret_key')
-
-        if not user_uuid or not user_secret_key:
-            data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, "Missing required parameters"
-            return Response(data)
-
-        # Check if user exists
-        check_user = User.objects.filter(secret_key=user_secret_key, uuid=user_uuid).first()
-        if not check_user:
-            data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, "User not found"
-            return Response(data)
+        user = get_object_or_404(User, uuid=user_uuid)
 
         
         all_leagues = []
+        invited_leages = OpenPlayInvitation.objects.filter(user=user).exclude(status='Declined')
+        check_player = Player.objects.filter(player=user).first()
+        if check_player:
+            team_ids = check_player.team.values_list('id', flat=True)
+            all_leagues = Leagues.objects.filter(
+                Q(is_complete=False) & 
+                (Q(registered_team__id__in=team_ids) | Q(created_by=user)),
+                team_type__name="Open-team"
+            ).distinct()
+        leagues = all_leagues + invited_leages
+        leagues = leagues.values(
+            "id", "uuid", "secret_key", "name", "location", "leagues_start_date", "leagues_end_date",
+            "registration_start_date", "registration_end_date", "team_type__name", "team_person__name",
+            "any_rank", "start_rank", "end_rank", "street", "city", "state", "postal_code", "country",
+            "complete_address", "latitude", "longitude", "image", "others_fees", "league_type", "registration_fee"
+        )
 
-        # Check if the user is a player
-        if check_user.is_player:
-            check_player = Player.objects.filter(player_email=check_user.email).first()
-            if check_player:
-                team_ids = check_player.team.values_list('id', flat=True)
-                all_leagues = Leagues.objects.filter(
-                    Q(is_complete=False) & 
-                    (Q(registered_team__id__in=team_ids) | Q(created_by=check_user)),
-                    team_type__name="Open-team"
-                ).distinct()
+        # Initialize output and grouping
+        output = []
+        grouped_data = {}
 
-            leagues = all_leagues.values(
-                "id", "uuid", "secret_key", "name", "location", "leagues_start_date", "leagues_end_date",
-                "registration_start_date", "registration_end_date", "team_type__name", "team_person__name",
-                "any_rank", "start_rank", "end_rank", "street", "city", "state", "postal_code", "country",
-                "complete_address", "latitude", "longitude", "image", "others_fees", "league_type", "registration_fee"
-            )
+        # Group and process data
+        for item in list(leagues):
+            # Registration control
+            item["is_reg_diable"] = True
+            match_ = Tournament.objects.filter(leagues_id=item["id"]).values()
+            if match_.exists():
+                item["is_reg_diable"] = False
 
-            # Initialize output and grouping
-            output = []
-            grouped_data = {}
+            le = Leagues.objects.filter(id=item["id"]).first()
+            sub_organizer_list = list(le.add_organizer.all().values_list("id", flat=True))
+            reg_team = le.registered_team.all().count()
+            max_team = le.max_number_team
+            if max_team <= reg_team:
+                item["is_reg_diable"] = False
 
-            # Group and process data
-            for item in list(leagues):
-                # Registration control
-                item["is_reg_diable"] = True
-                match_ = Tournament.objects.filter(leagues_id=item["id"]).values()
-                if match_.exists():
-                    item["is_reg_diable"] = False
+            # Organizer roles
+            if user == le.created_by:
+                item["main_organizer"] = True
+                item["sub_organizer"] = False
+            elif user.id in sub_organizer_list:
+                item["main_organizer"] = False
+                item["sub_organizer"] = True
+            else:
+                item["main_organizer"] = False
+                item["sub_organizer"] = False
 
-                le = Leagues.objects.filter(id=item["id"]).first()
-                sub_organizer_list = list(le.add_organizer.all().values_list("id", flat=True))
-                reg_team = le.registered_team.all().count()
-                max_team = le.max_number_team
-                if max_team <= reg_team:
-                    item["is_reg_diable"] = False
+            # Grouping by 'name'
+            key = item['name']
+            if key not in grouped_data:
+                grouped_data[key] = {
+                    'name': item['name'],
+                    'lat': item['latitude'],
+                    'long': item["longitude"],
+                    'registration_start_date': item["registration_start_date"],
+                    'registration_end_date': item["registration_end_date"],
+                    'leagues_start_date': item["leagues_start_date"],
+                    'leagues_end_date': item["leagues_end_date"],
+                    'location': item["location"],
+                    'image': item["image"],
+                    'type': [item['team_type__name']],
+                    'data': [item]
+                }
+            else:
+                grouped_data[key]['type'].append(item['team_type__name'])
+                grouped_data[key]['data'].append(item)
 
-                # Organizer roles
-                if check_user == le.created_by:
-                    item["main_organizer"] = True
-                    item["sub_organizer"] = False
-                elif check_user.id in sub_organizer_list:
-                    item["main_organizer"] = False
-                    item["sub_organizer"] = True
-                else:
-                    item["main_organizer"] = False
-                    item["sub_organizer"] = False
+        # Build the final output
+        for key, value in grouped_data.items():
+            value["is_edit"] = True
+            value["is_delete"] = True
+            output.append(value)
 
-                # Grouping by 'name'
-                key = item['name']
-                if key not in grouped_data:
-                    grouped_data[key] = {
-                        'name': item['name'],
-                        'lat': item['latitude'],
-                        'long': item["longitude"],
-                        'registration_start_date': item["registration_start_date"],
-                        'registration_end_date': item["registration_end_date"],
-                        'leagues_start_date': item["leagues_start_date"],
-                        'leagues_end_date': item["leagues_end_date"],
-                        'location': item["location"],
-                        'image': item["image"],
-                        'type': [item['team_type__name']],
-                        'data': [item]
-                    }
-                else:
-                    grouped_data[key]['type'].append(item['team_type__name'])
-                    grouped_data[key]['data'].append(item)
+        # Final leagues data
+        leagues = output
 
-            # Build the final output
-            for key, value in grouped_data.items():
-                value["is_edit"] = True
-                value["is_delete"] = True
-                output.append(value)
-
-            # Final leagues data
-            leagues = output
-
-            data['status'], data['data'], data['message'] = status.HTTP_200_OK, leagues, "Data found"
-        else:
-            data['status'], data['message'] = status.HTTP_200_OK, "No leagues found"
-
+        data['status'], data['data'], data['message'] = status.HTTP_200_OK, leagues, "Data found"
+       
     except Exception as e:
         data['status'], data['message'] = status.HTTP_500_INTERNAL_SERVER_ERROR, f"Error: {str(e)}"
 

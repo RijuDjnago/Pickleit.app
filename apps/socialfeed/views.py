@@ -52,7 +52,7 @@ def social_feed_list(request):
     feeds = socialFeed.objects.filter(block=False).order_by('-created_at')
     serializer = SocialFeedSerializer(feeds, many=True, context={'user_uuid': user_uuid})
     data = serializer.data
-    random.shuffle(data)
+    # random.shuffle(data)
     paginator = SocialFeedPagination()
     paginated_data = paginator.paginate_queryset(data, request)
     return paginator.get_paginated_response(paginated_data)
@@ -87,7 +87,12 @@ def post_social_feed(request):
         for post_file in post_files:
             save_file = FeedFile(post=feed, file=post_file)
             save_file.save()
-
+        #need to send universal notification to all users
+        from apps.chat.views import notify_all_users
+        titel = "New Post"
+        message = "New post added by " + str(get_user.first_name) + " " + str(get_user.last_name)
+        if titel and message:
+            notify_all_users(titel, message)
         return Response(
                         {
                         "msg":"Successfully posted your feed!", 

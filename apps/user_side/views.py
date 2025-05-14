@@ -5,10 +5,15 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import authenticate, login as auth_login, logout
 from django.urls import reverse
+from django.utils.timezone import make_aware
+from django.http import HttpResponseRedirect
+from django.contrib import messages
+from django.db.models import Exists, OuterRef
+from django.views.decorators.http import require_POST
 import stripe
 from apps.team.models import *
 from apps.user.models import AllPaymentsTable, User, Wallet, Transaction, WalletTransaction
-from apps.socialfeed.models import socialFeed, FeedFile
+from apps.socialfeed.models import *
 from django.db.models import Q
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from datetime import timezone, datetime
@@ -17,15 +22,16 @@ from apps.clubs.models import *
 from apps.courts.models import *
 from django.conf import settings
 from geopy.distance import geodesic
+from rest_framework import status
 from apps.user.helpers import *
 from apps.team.views import notify_edited_player, check_add_player
 from decimal import Decimal, ROUND_DOWN
-from django.utils.timezone import make_aware
 import base64
 import requests
 import json
 from apps.chat.models import NotificationBox
-
+from apps.socialfeed.models import *
+import uuid
 stripe.api_key = settings.STRIPE_SECRET_KEY
 protocol = settings.PROTOCALL
 
@@ -115,7 +121,7 @@ def profile(request):
 @login_required(login_url="/user_side/")
 def edit_profile(request):
    
-    print("Before form submission:", request.user, request.user.is_authenticated)  # Debugging line
+    #print("Before form submission:", request.user, request.user.is_authenticated)  # Debugging line
 
     user = request.user
 
@@ -140,7 +146,7 @@ def edit_profile(request):
         try:
             user.save()
             auth_login(request, user)  # Keep the user logged in
-            print("After form submission:", request.user, request.user.is_authenticated)  # Debugging line
+            #print("After form submission:", request.user, request.user.is_authenticated)  # Debugging line
             return redirect('user_side:user_profile') 
         except Exception as e:
             messages.error(request, f"Error updating profile: {str(e)}")
@@ -148,6 +154,66 @@ def edit_profile(request):
     context = {"user_details": user, "MAP_API_KEY" : 'AIzaSyAfBo6-cZlOpKGrD1ZYwISIGjYvhH_wPmk'}
     return render(request, 'sides/editprofile.html', context)
 
+
+@csrf_exempt
+def nearby_pickleball(request):
+    if request.method == 'POST':
+        body = json.loads(request.body)
+        lat = float(body.get('lat'))
+        lng = float(body.get('lng'))
+
+        # Generate demo data with slight offsets
+        player_names = ["John Pickler", "Sarah Smash", "Mike Dinker", "Emma Rally", "Tom Spin"]
+        player_descriptions = [
+            "Intermediate player, available for casual games",
+            "Advanced player, looking for competitive matches",
+            "Beginner, loves social play",
+            "Enthusiast, plays weekends",
+            "Pro player, coaching available"
+        ]
+        event_names = [
+            "City Pickleball Open",
+            "Community Meetup",
+            "Pro Clinic",
+            "Night Tournament",
+            "Social Smash"
+        ]
+        event_descriptions = [
+            "Tournament with $500 prize, May 15, 2025",
+            "Weekly social play, all levels welcome",
+            "Learn from pros, May 20, 2025",
+            "Evening matches under lights, May 18, 2025",
+            "Fun games with food and music, May 22, 2025"
+        ]
+
+        # Generate 3-5 players and events with random offsets
+        player_data = []
+        event_data = []
+        for i in range(3):  # 3 players
+            offset_lat = random.uniform(-0.05, 0.05)  # ~5 miles
+            offset_lng = random.uniform(-0.05, 0.05)
+            player_data.append({
+                "name": player_names[i],
+                "lat": str(lat + offset_lat),
+                "lng": str(lng + offset_lng),
+                "description": player_descriptions[i]
+            })
+        for i in range(3):  # 3 events
+            offset_lat = random.uniform(-0.05, 0.05)
+            offset_lng = random.uniform(-0.05, 0.05)
+            event_data.append({
+                "name": event_names[i],
+                "lat": str(lat + offset_lat),
+                "lng": str(lng + offset_lng),
+                "description": event_descriptions[i]
+            })
+
+        data = {
+            "player_data": player_data,
+            "event_data": event_data
+        }
+        return JsonResponse(data)
+    return JsonResponse({'error': 'Invalid request'}, status=400)
 
 @login_required(login_url="/user_side/")
 def index(request):
@@ -157,29 +223,42 @@ def index(request):
         "join_event_count":0,
         "completed_event_count":0,
         "match_history":[],
-        "socail_feed_list":[]
+        "socail_feed_list":[],
+        "API_KEY": settings.MAP_API_KEY
     }
+    player = Player.objects.filter(player=request.user).first()
     user_teams = Team.objects.filter(created_by=request.user)
+    teams = list(player.team.all()) + list(user_teams)
     join_event = Leagues.objects.filter(registered_team__in = user_teams, is_complete=False).distinct()
     completed_event = Leagues.objects.filter(registered_team__in = user_teams, is_complete=True).distinct()
     user_teams_count = user_teams.count()
     balance = Wallet.objects.filter(user=request.user).first().balance
     join_event_count = join_event.count()
     completed_event_count = completed_event.count()
+    
     match_history = Tournament.objects.filter(Q(team1__in=user_teams) | Q(team2__in=user_teams)).distinct()[:5]
-    socail_feed_list = socialFeed.objects.all().order_by("-created_at")[:5]
+    for match_ in match_history:
+        if match_.team1 in teams:
+            match_.opponent = match_.team2
+        else:
+            match_.opponent = match_.team1
+
+        match_.scores = TournamentSetsResult.objects.filter(tournament=match_)
     for match_ in match_history:
         match_.score = TournamentSetsResult.objects.filter(tournament=match_)
-    for feed in socail_feed_list:
-        images = FeedFile.objects.filter(post=feed)
-        if images:
-            feed.image = images.first().file.url
+    
+    user_likes = LikeFeed.objects.filter(
+        user=request.user, post=OuterRef('pk')
+    )
+    
+    # Annotate posts with is_like
+    posts = socialFeed.objects.filter(block=False).annotate(is_like=Exists(user_likes)).order_by('-created_at')[::3]
     context["user_teams_count"] = user_teams_count
     context["balance"] = balance
     context["join_event_count"] = join_event_count
     context["completed_event_count"] = completed_event_count
     context["match_history"] = match_history
-    context["socail_feed_list"] = socail_feed_list
+    context["socail_feed_list"] = posts
     return render(request, 'sides/index.html', context=context)
 
 
@@ -473,24 +552,306 @@ def team_view_user(request, team_id):
     })
     return render(request, 'sides/team_view.html', context)
 
+
+@login_required(login_url="/user_side/")
+def add_event(request):
+    YOUR_API_KEY = settings.MAP_API_KEY
+    PLAY_TYPE = PLAY_TYPE =(
+            ("Group Stage", "Group Stage"),
+            ("Round Robin", "Round Robin"),
+            ("Single Elimination", "Single Elimination"),
+            ("Individual Match Play", "Individual Match Play"),
+        )
+    LEAGUE_TYPE = LEAGUE_TYPE = (
+            ("Invites only", "Invites only"),
+            ("Open to all", "Open to all"),
+        )
+    # Get dynamic choices
+    play_type_choices = [choice[0] for choice in PLAY_TYPE]
+    team_type_choices = LeaguesTeamType.objects.all()
+    person_type_choices = LeaguesPesrsonType.objects.all()
+    league_type_choices = [choice[0] for choice in LEAGUE_TYPE]
+
+    
+    if request.method == "POST":
+        try:
+            # Initialize event_data dictionary for processing
+            event_data = {
+                'event_name': request.POST.get('event_name'),
+                'event_description': request.POST.get('event_description'),
+                'event_image': request.FILES.get('event_image'),
+                'location': request.POST.get('location'),
+                'max_team': request.POST.get('max_team'),
+                'total_fee': request.POST.get('total_fee'),
+                'registration_start': request.POST.get('registration_start'),
+                'registration_end': request.POST.get('registration_end'),
+                'event_start': request.POST.get('event_start'),
+                'event_end': request.POST.get('event_end'),
+                'start_rank': request.POST.get('start_rank'),
+                'end_rank': request.POST.get('end_rank'),
+                'registration_type': request.POST.get('registration_type'),
+                'extra_fees': [],
+                'cancel_policies': [],
+                'play_configs': [],
+                'invite_code': None,
+                'latitude': request.POST.get('latitude'),
+                'longitude': request.POST.get('longitude')
+            }
+
+            # Validate required fields
+            required_fields = ['event_name', 'event_description', 'location', 'max_team', 
+                             'total_fee', 'registration_start', 'registration_end', 
+                             'event_start', 'event_end', 'registration_type']
+            for field in required_fields:
+                if not event_data[field]:
+                    raise ValueError(f"{field.replace('_', ' ').title()} is required")
+
+            # Validate league_type
+            if event_data['registration_type'] not in league_type_choices:
+                raise ValueError("Invalid league type selected")
+
+            # Extra fees
+            extra_fee_names = request.POST.getlist('extra_fee_name[]')
+            extra_fee_amounts = request.POST.getlist('extra_fee_amount[]')
+            for name, amount in zip(extra_fee_names, extra_fee_amounts):
+                if name and amount:
+                    try:
+                        event_data['extra_fees'].append({
+                            'name': name.strip(),
+                            'amount': float(amount)
+                        })
+                    except ValueError:
+                        raise ValueError("Invalid extra fee amount")
+
+            # Cancellation policy
+            cancel_durations = request.POST.getlist('cancel_duration[]')
+            cancel_percentages = request.POST.getlist('cancel_percentage[]')
+            for duration, percentage in zip(cancel_durations, cancel_percentages):
+                if duration and percentage:
+                    try:
+                        event_data['cancel_policies'].append({
+                            'duration': int(duration),
+                            'percentage': float(percentage)
+                        })
+                    except ValueError:
+                        raise ValueError("Invalid cancellation policy values")
+
+            # Play configuration
+            play_types = request.POST.getlist('play_type[]')
+            team_types = request.POST.getlist('team_type[]')
+            player_types = request.POST.getlist('player_type[]')
+            court_round_robins = request.POST.getlist('court_round_robin[]')
+            set_round_robins = request.POST.getlist('set_round_robin[]')
+            point_round_robins = request.POST.getlist('point_round_robin[]')
+            court_eliminations = request.POST.getlist('court_elimination[]')
+            set_eliminations = request.POST.getlist('set_elimination[]')
+            point_eliminations = request.POST.getlist('point_elimination[]')
+            court_finals = request.POST.getlist('court_final[]')
+            set_finals = request.POST.getlist('set_final[]')
+            point_finals = request.POST.getlist('point_final[]')
+
+            # Validate play configuration arrays length
+            if not (len(play_types) == len(team_types) == len(player_types) ==
+                    len(court_round_robins) == len(set_round_robins) == len(point_round_robins) ==
+                    len(court_eliminations) == len(set_eliminations) == len(point_eliminations) ==
+                    len(court_finals) == len(set_finals) == len(point_finals)):
+
+                raise ValueError("Play configuration arrays have inconsistent lengths")
+
+            for i in range(len(play_types)):
+                if (play_types[i] and team_types[i] and player_types[i] and
+                    court_round_robins[i] and set_round_robins[i] and point_round_robins[i] and
+                    court_eliminations[i] and set_eliminations[i] and point_eliminations[i] and
+                    court_finals[i] and set_finals[i] and point_finals[i]):
+                    try:
+                        # Validate play_type
+                        if play_types[i] not in play_type_choices:
+                            raise ValueError(f"Invalid play type: {play_types[i]}")
+                        # Validate team_type
+                        if not LeaguesTeamType.objects.filter(name=team_types[i]).exists():
+                            raise ValueError(f"Invalid team type: {team_types[i]}")
+                        # Validate person_type
+                        if not LeaguesPesrsonType.objects.filter(name=player_types[i]).exists():
+                            raise ValueError(f"Invalid person type: {player_types[i]}")
+                            
+                        event_data['play_configs'].append({
+                            'play_type': play_types[i],
+                            'team_type': team_types[i],
+                            'player_type': player_types[i],
+                            'round_robin': {
+                                'court': int(court_round_robins[i]),
+                                'set': int(set_round_robins[i]),
+                                'point': int(point_round_robins[i])
+                            },
+                            'elimination': {
+                                'court': int(court_eliminations[i]),
+                                'set': int(set_eliminations[i]),
+                                'point': int(point_eliminations[i])
+                            },
+                            'final': {
+                                'court': int(court_finals[i]),
+                                'set': int(set_finals[i]),
+                                'point': int(point_finals[i])
+                            }
+                        })
+                    except ValueError as e:
+                        raise ValueError(f"Invalid play configuration values at index {i}: {str(e)}")
+
+            # Generate invite code if registration_type is 'Invites only'
+            if event_data['registration_type'] == 'Invites only':
+                event_data['invite_code'] = str(uuid.uuid4())[:6].upper()
+
+            # Create a Leagues instance for each play configuration
+            for config in event_data['play_configs']:
+                # Retrieve team_type and person_type instances
+                team_type = LeaguesTeamType.objects.filter(name=config['team_type']).first()
+                if not team_type:
+                    raise ValueError(f"Team type {config['team_type']} does not exist")
+                
+                person_type = LeaguesPesrsonType.objects.filter(name=config['player_type']).first()
+                if not person_type:
+                    raise ValueError(f"Person type {config['player_type']} does not exist")
+
+                # Create Leagues instance
+                league = Leagues.objects.create(
+                    secret_key=str(uuid.uuid4()),
+                    name=event_data['event_name'],
+                    description=event_data['event_description'],
+                    image=event_data['event_image'],
+                    complete_address=event_data['location'],
+                    location=event_data['location'],
+                    max_number_team=int(event_data['max_team']) if event_data['max_team'] else 2,
+                    registration_fee=float(event_data['total_fee']) if event_data['total_fee'] else 5.0,
+                    others_fees=event_data['extra_fees'] if event_data['extra_fees'] else None,
+                    registration_start_date=event_data['registration_start'],
+                    registration_end_date=event_data['registration_end'],
+                    leagues_start_date=event_data['event_start'],
+                    leagues_end_date=event_data['event_end'],
+                    latitude=float(event_data['latitude']) if event_data['latitude'] else None,
+                    longitude=float(event_data['longitude']) if event_data['longitude'] else None,
+                    start_rank=float(event_data['start_rank']) if event_data['start_rank'] else None,
+                    end_rank=float(event_data['end_rank']) if event_data['end_rank'] else None,
+                    league_type=event_data['registration_type'],
+                    invited_code=event_data['invite_code'],
+                    created_by=request.user,
+                    updated_by=request.user,
+                    any_rank=False if event_data['start_rank'] or event_data['end_rank'] else True,
+                    policy=bool(event_data['cancel_policies']),
+                    play_type=config['play_type'],
+                    team_type=team_type,
+                    team_person=person_type
+                )
+
+                # Save cancellation policies
+                for policy in event_data['cancel_policies']:
+                    LeaguesCancellationPolicy.objects.create(
+                        league=league,
+                        within_day=policy['duration'],
+                        refund_percentage=policy['percentage']
+                    )
+
+                
+                # Create LeaguesPlayType entry
+                play_type_data = [
+                    {
+                        "name": "Round Robin",
+                        "number_of_courts": config['round_robin']['court'],
+                        "sets": config['round_robin']['set'],
+                        "point": config['round_robin']['point']
+                    },
+                    {
+                        "name": "Elimination",
+                        "number_of_courts": config['elimination']['court'],
+                        "sets": config['elimination']['set'],
+                        "point": config['elimination']['point']
+                    },
+                    {
+                        "name": "Final",
+                        "number_of_courts": config['final']['court'],
+                        "sets": config['final']['set'],
+                        "point": config['final']['point']
+                    }
+                ]
+
+                LeaguesPlayType.objects.create(
+                    type_name=config['play_type'],
+                    league_for=league,
+                    data=play_type_data
+                )
+
+            messages.success(request, f"Successfully created {len(event_data['play_configs'])} events!")
+            return redirect('user_side:event_user')
+
+        except ValueError as e:
+            messages.error(request, f"Error creating events: {str(e)}")
+        except Exception as e:
+            messages.error(request, f"Unexpected error: {str(e)}")
+            
+        return render(request, 'sides/add_event_form.html', {
+            'MAP_API_KEY': YOUR_API_KEY,
+            'event_data': event_data,
+            'play_type_choices': play_type_choices,
+            'team_type_choices': team_type_choices,
+            'person_type_choices': person_type_choices,
+            'league_type_choices': league_type_choices
+        })
+
+    return render(request, 'sides/add_event_form.html', {
+        'MAP_API_KEY': YOUR_API_KEY,
+        'play_type_choices': play_type_choices,
+        'team_type_choices': team_type_choices,
+        'person_type_choices': person_type_choices,
+        'league_type_choices': league_type_choices
+    })
+
 @login_required(login_url="/user_side/")
 def event(request):
     query = request.GET.get('q', '')
-    team_type_filter = request.GET.get('team_type', '')
-    leagues = Leagues.objects.exclude(play_type = "Individual Match Play").order_by('-leagues_start_date')  # Fetch all leagues sorted by start date
-    today = datetime.now()
-    if team_type_filter == "all":
-        pass
-    elif team_type_filter == "Open":
-        leagues = leagues.filter(registration_start_date__date__lte=today,registration_end_date__date__gte=today)
-    elif team_type_filter == "Upcoming":
-        leagues = leagues.filter(leagues_start_date__date__gte = today, is_complete=False)
-    elif team_type_filter == "Ongoing":
-        leagues = leagues.filter(leagues_start_date__date__lte = today, leagues_end_date__date__gte = today, is_complete=False)
-    elif team_type_filter == "Past":
-        leagues = leagues.filter(leagues_end_date__date__lte = today, is_complete=True)
-    return render(request, 'sides/event.html', {'leagues': leagues, "team_type_filter":team_type_filter, "text":query})
+    team_type_filter = request.GET.get('team_type', 'all')
+    my_event_type_filter = request.GET.get('my_event_type', 'all')
 
+    # Base queryset: Exclude "Individual Match Play" and order by start date
+    leagues = Leagues.objects.exclude(play_type="Individual Match Play")
+
+    # Apply my_event_type_filter
+    if my_event_type_filter != 'all':
+        if my_event_type_filter == 'org_event':
+            leagues = leagues.filter(created_by=request.user) | leagues.filter(add_organizer=request.user)
+            leagues = leagues.distinct()
+        elif my_event_type_filter == 'join_event':
+            player = Player.objects.filter(player=request.user).first()
+            if player:
+                teams = player.team.all()
+                leagues = leagues.filter(registered_team__in=teams, is_complete=False).distinct()
+            else:
+                leagues = Leagues.objects.none()  # No leagues if user is not a player
+
+    # Apply team_type_filter
+    today = datetime.now().date()
+    if team_type_filter == 'all':
+        pass
+    elif team_type_filter == 'Open':
+        leagues = leagues.filter(registration_start_date__date__lte=today, registration_end_date__date__gte=today)
+    elif team_type_filter == 'Upcoming':
+        leagues = leagues.filter(leagues_start_date__date__gte=today, is_complete=False)
+    elif team_type_filter == 'Ongoing':
+        leagues = leagues.filter(leagues_start_date__date__lte=today, leagues_end_date__date__gte=today, is_complete=False)
+    elif team_type_filter == 'Past':
+        leagues = leagues.filter(leagues_end_date__date__lte=today, is_complete=True)
+
+    # Apply search query if provided
+    if query:
+        leagues = leagues.filter(name__icontains=query)
+
+    # Order the final queryset
+    leagues = leagues.order_by('-leagues_start_date')
+
+    return render(request, 'sides/event.html', {
+        'leagues': leagues,
+        'team_type_filter': team_type_filter,
+        'my_event_type_filter': my_event_type_filter,
+        'text': query
+    })
 
 @login_required(login_url="/user_side/")
 def event_view(request, event_id):
@@ -503,24 +864,27 @@ def event_view(request, event_id):
     context["policy"] = LeaguesCancellationPolicy.objects.filter(league=event)
     context["all_join_teams"] = event.registered_team.all()
     context["organizer"] = user == event.created_by
-    # calculate total fees
+
+    # Calculate total fees
     fees = event.registration_fee
     others_fees = event.others_fees
     if others_fees:
-        for val in others_fees.values():
-            if isinstance(val, (int, float)):  # Ensure the value is numeric
+        for val in others_fees:
+            if isinstance(val, (int, float)):
                 fees += val
-            elif isinstance(val, str) and val.isdigit():  # Convert string numbers
+            elif isinstance(val, str) and val.isdigit():
                 fees += int(val)
     context["total_fees"] = fees
-    ##wallet balance
+
+    # Wallet balance
     try:
         wallet = Wallet.objects.filter(user=user).first()
         balance = wallet.balance
     except:
         balance = 0
     context["balance"] = balance
-    # my team
+
+    # My team
     my_team = Team.objects.filter(created_by=user)
     team_type = event.team_type
     team_person = event.team_person
@@ -531,41 +895,726 @@ def event_view(request, event_id):
     for team in my_team:
         team.players = Player.objects.filter(team=team)
     context["my_team"] = my_team
-    #matches 
+
+    # Matches
     matches = Tournament.objects.filter(leagues=event)
-    for matche in matches:
-        matche.score = TournamentSetsResult.objects.filter(tournament=matche)
-
+    for match in matches:
+        match.score = TournamentSetsResult.objects.filter(tournament=match)
     context["matches"] = matches
+
+    # Team stats
     team_stats = {}
-    for match_ in matches:
-        if match_.team1 and match_.team2:
-            if match_.team1 not in team_stats:
-                team_stats[match_.team1] = {"played": 0, "wins": 0, "losses": 0, "draws": 0, "points": 0}
-            if match_.team2 not in team_stats:
-                team_stats[match_.team2] = {"played": 0, "wins": 0, "losses": 0, "draws": 0, "points": 0}
+    for match in matches:
+        if match.team1 and match.team2:
+            if match.team1 not in team_stats:
+                team_stats[match.team1] = {"played": 0, "wins": 0, "losses": 0, "draws": 0, "points": 0}
+            if match.team2 not in team_stats:
+                team_stats[match.team2] = {"played": 0, "wins": 0, "losses": 0, "draws": 0, "points": 0}
 
-            team_stats[match_.team1]["played"] += 1
-            team_stats[match_.team2]["played"] += 1
+            team_stats[match.team1]["played"] += 1
+            team_stats[match.team2]["played"] += 1
 
-            if match_.is_drow:  # If match is a draw
-                team_stats[match_.team1]["draws"] += 1
-                team_stats[match_.team2]["draws"] += 1
-                team_stats[match_.team1]["points"] += 1
-                team_stats[match_.team2]["points"] += 1
-            elif match_.winner_team:  # If there is a winner
-                team_stats[match_.winner_team]["wins"] += 1
-                team_stats[match_.winner_team]["points"] += 3  # 3 points for a win
-                loser_team = match_.team1 if match_.winner_team == match_.team2 else match_.team2
+            if match.is_drow:
+                team_stats[match.team1]["draws"] += 1
+                team_stats[match.team2]["draws"] += 1
+                team_stats[match.team1]["points"] += 1
+                team_stats[match.team2]["points"] += 1
+            elif match.winner_team:
+                team_stats[match.winner_team]["wins"] += 1
+                team_stats[match.winner_team]["points"] += 3
+                loser_team = match.team1 if match.winner_team == match.team2 else match.team2
                 team_stats[loser_team]["losses"] += 1
+    #round_robin group
+    r_group = RoundRobinGroup.objects.filter(league_for=event)
+    context["r_group"] = r_group
+    # Point table
+    point_table = []
+    play_type_check_win = event.play_type
+    all_group_details = RoundRobinGroup.objects.filter(league_for=event)
+    for grp in all_group_details:
+        teams = grp.all_teams.all()
+        group_score_point_table = []
+        for team in teams:
+            team_score = {}
+            total_match_details = Tournament.objects.filter(leagues=event, match_type="Round Robin").filter(Q(team1=team) | Q(team2=team))
+            completed_match_details = total_match_details.filter(is_completed=True)
+            win_match_details = completed_match_details.filter(winner_team=team).count()
+            loss_match_details = completed_match_details.filter(loser_team=team).count()
+            drow_match = len(completed_match_details) - (win_match_details + loss_match_details)
+            match_list = list(total_match_details.values_list("id", flat=True))
+            for_score = 0
+            against_score = 0
+            for sc in match_list:
+                co_team_position = Tournament.objects.filter(id=sc).first()
+                set_score = TournamentSetsResult.objects.filter(tournament_id=sc)
+                if co_team_position.team1 == team:
+                    for_score += sum(list(set_score.values_list("team1_point", flat=True)))
+                    against_score += sum(list(set_score.values_list("team2_point", flat=True)))
+                else:
+                    for_score += sum(list(set_score.values_list("team2_point", flat=True)))
+                    against_score += sum(list(set_score.values_list("team1_point", flat=True)))
+                
+            point = (win_match_details * 3) + (drow_match * 1)
+            team_score["uuid"] = str(team.uuid)
+            team_score["secret_key"] = team.secret_key
+            team_score["name"] = team.name
+            team_score["completed_match"] = len(completed_match_details)
+            team_score["win_match"] = win_match_details
+            team_score["loss_match"] = loss_match_details
+            team_score["drow_match"] = drow_match
+            team_score["for_score"] = for_score
+            team_score["against_score"] = against_score
+            team_score["point"] = point
+            group_score_point_table.append(team_score)
 
+        # Sort group score point table
+        group_score_point_table = sorted(group_score_point_table, key=lambda x: (x['point'], x['for_score']), reverse=True)
+
+        # Update winner for Round Robin
+        if play_type_check_win == "Round Robin":
+            total_tournament = Tournament.objects.filter(leagues=event, match_type="Round Robin", leagues__play_type="Round Robin")
+            completed_tournament = total_tournament.filter(is_completed=True)
+            if total_tournament.count() == completed_tournament.count() and group_score_point_table:
+                winner_team = Team.objects.filter(uuid=group_score_point_table[0]["uuid"]).first()
+                event.winner_team = winner_team
+                event.is_complete = True
+                event.save()
+                context["winner_team"] = winner_team.name
+
+        grp_data = {
+            "id": grp.id,
+            "court": grp.court,
+            "league_for_id": grp.league_for_id,
+            "all_games_status": grp.all_games_status,
+            "all_teams": group_score_point_table,
+            # "tournament": list(tournament_details_group),
+            "seleced_teams_id": grp.seleced_teams_id
+        }
+        point_table.append(grp_data)
+
+    context["point_table"] = point_table
     
-    context["is_join"] = event.registration_end_date.date() >= today.date()
-    # Sort teams based on points (highest first)
+    if event.registered_team.all().count() == 0 and event.created_by == user:
+        context["is_del"] = True
+    else:
+        context["is_del"] = False
+    teams = Player.objects.filter(player=user).first().team.all() if Player.objects.filter(player=user).exists() else []
+    if event.registered_team.filter(id__in=teams).exists() and not event.is_complete and Tournament.objects.filter(leagues=event).exists():
+        context["score_update"] = True
+    elif user == event.created_by and Tournament.objects.filter(leagues=event).exists():
+        context["score_update"] = True
+    else:
+        context["score_update"] = False
+    if event.registration_end_date:
+        context["is_join"] = event.registration_end_date.date() >= today.date()
+    else:
+        context["is_join"] = False
     sorted_teams = sorted(team_stats.items(), key=lambda x: x[1]["points"], reverse=True)
     context["sorted_teams"] = sorted_teams
-    context["groups "] = RoundRobinGroup.objects.filter(league_for=event)
+    context["groups"] = RoundRobinGroup.objects.filter(league_for=event)
+
     return render(request, 'sides/event_view.html', context=context)
+
+@login_required(login_url="/user_side/")
+def event_delete(request, event_id):
+    event = get_object_or_404(Leagues, id=event_id)
+    
+    if event.registered_team.all().count() == 0 and event.created_by == request.user:
+        try:
+            # Delete related cancellation policies and play types
+            LeaguesCancellationPolicy.objects.filter(league=event).delete()
+            LeaguesPlayType.objects.filter(league_for=event).delete()
+            # Delete the event
+            event.delete()
+            # messages.success(request, "Event deleted successfully.")
+            return redirect('user_side:event_user')
+        except Exception as e:
+            # messages.error(request, f"Error deleting event: {str(e)}")
+            return redirect('user_side:event_user')
+    else:
+        # messages.error(
+        #     request,
+        #     "You cannot delete this event because it has registered teams. Please contact an admin to delete the event."
+        # )
+        return redirect(reverse('user_side:event_view', kwargs={'event_id': event_id}))
+
+
+#### assign match 
+@login_required(login_url="/user_side/")
+def start_tournament(request, event_id):
+    """View to start a tournament and assign matches based on play type."""
+    event = get_object_or_404(Leagues, id=event_id)
+    if request.user != event.created_by:
+        messages.error(request, "You are not authorized to start this tournament.")
+        return redirect('user_side:event_view', event_id=event_id)
+
+    # Fetch play type details
+    playtype_details = get_playtype_details(event)
+    registered_teams = event.registered_team.all()
+    team_ids = [team.id for team in registered_teams]
+    max_teams = event.max_number_team
+
+    # Validate team registration
+    if len(team_ids) != max_teams:
+        messages.error(request, "All teams are not registered.")
+        return redirect('user_side:event_view', event_id=event_id)
+
+    # Send tournament start notifications
+    send_tournament_notifications(event, team_ids)
+
+    # Process based on play type
+    playtype = event.play_type
+    if playtype == "Single Elimination":
+        result = handle_single_elimination(event, team_ids, playtype_details)
+    elif playtype == "Group Stage":
+        result = handle_group_stage(event, team_ids, playtype_details)
+    elif playtype == "Round Robin":
+        result = handle_round_robin(event, team_ids, playtype_details)
+    elif playtype == "Individual Match Play":
+        result = handle_individual_match_play(event, team_ids, playtype_details)
+    else:
+        messages.error(request, "Invalid play type.")
+        return redirect('user_side:event_view', event_id=event_id)
+
+    # Display result message
+    messages.success(request, result["message"]) if result["status"] == status.HTTP_200_OK else messages.error(request, result["message"])
+    return redirect('user_side:event_view', event_id=event_id)
+
+def get_playtype_details(event):
+    """Fetch and return play type details for the event."""
+    playtype_details = LeaguesPlayType.objects.filter(league_for=event).first()
+    if playtype_details:
+        return playtype_details.data
+    return [
+        {"name": "Round Robin", "number_of_courts": 0, "sets": 0, "point": 0},
+        {"name": "Elimination", "number_of_courts": 0, "sets": 0, "point": 0},
+        {"name": "Final", "number_of_courts": 0, "sets": 0, "point": 0}
+    ]
+
+def send_tournament_notifications(event, team_ids):
+    """Send notifications to team managers and players when tournament starts."""
+    league_name = event.name
+    for team_id in team_ids:
+        team = Team.objects.get(id=team_id)
+        team_manager = team.created_by
+        notify_edited_player(
+            team_manager.id,
+            "Start Tournament",
+            f"The tournament {league_name} has started."
+        )
+        players = Player.objects.filter(team__id=team_id)
+        for player in players:
+            notify_edited_player(
+                player.player.id,
+                "Start Tournament",
+                f"Player, get ready! The tournament {league_name} has started."
+            )
+
+def calculate_team_rank(team):
+    """Calculate the average rank of a team based on its players."""
+    players = team.player_set.all()
+    if not players.exists():
+        return 0
+    total_rank = sum(float(player.player.rank or '1') for player in players)
+    return total_rank / players.count()
+
+def create_group(team_ids, num_parts):
+    """Create balanced groups of teams based on their ranks."""
+    num_parts = int(num_parts)
+    if num_parts <= 0:
+        return {"status": status.HTTP_400_BAD_REQUEST, "message": "Number of parts should be greater than zero."}
+
+    teams = Team.objects.filter(id__in=team_ids)
+    team_list = [(team.id, calculate_team_rank(team)) for team in teams]
+    team_list.sort(key=lambda x: x[1], reverse=True)
+    sorted_team_ids = [team[0] for team in team_list]
+    total_teams = len(sorted_team_ids)
+    teams_per_group = total_teams // num_parts
+    remainder = total_teams % num_parts
+
+    group_list = [[] for _ in range(num_parts)]
+    for i, team_id in enumerate(sorted_team_ids):
+        group_idx = i % num_parts
+        group_list[group_idx].append(team_id)
+
+    max_group_size = teams_per_group + (1 if remainder > 0 else 0)
+    for i in range(num_parts):
+        if len(group_list[i]) > max_group_size:
+            group_list[i] = group_list[i][:max_group_size]
+
+    return {"status": status.HTTP_200_OK, "message": "Groups created", "groups": group_list}
+
+def make_shuffle(input_list):
+    """Shuffle pairs of teams for elimination rounds."""
+    result = []
+    try:
+        for i in range(0, len(input_list), 2):
+            result.extend([
+                input_list[i][0],    # A1
+                input_list[i+1][1],  # B2
+                input_list[i][1],    # A2
+                input_list[i+1][0]   # B1
+            ])
+    except IndexError:
+        pass
+    return result
+
+def create_tournament_match(event, team1_id, team2_id, match_type, round_number, court_num, sets, points, match_number, group_id=None):
+    """Create a tournament match with the given parameters."""
+    obj = GenerateKey()
+    secret_key = obj.generate_league_unique_id()
+    Tournament.objects.create(
+        set_number=sets,
+        court_num=court_num,
+        points=points,
+        court_sn=court_num,
+        match_number=match_number,
+        secret_key=secret_key,
+        leagues=event,
+        team1_id=team1_id,
+        team2_id=team2_id,
+        match_type=match_type,
+        elimination_round=round_number,
+        group_id=group_id
+    )
+
+def handle_single_elimination(event, team_ids, playtype_details):
+    """Handle Single Elimination tournament logic."""
+    court_num_e = int(playtype_details[1]["number_of_courts"])
+    set_num_e = int(playtype_details[1]["sets"])
+    point_num_e = int(playtype_details[1]["point"])
+    court_num_f = int(playtype_details[2]["number_of_courts"])
+    set_num_f = int(playtype_details[2]["sets"])
+    point_num_f = int(playtype_details[2]["point"])
+
+    if len(team_ids) != event.max_number_team:
+        return {"status": status.HTTP_200_OK, "message": "All teams are not joined"}
+
+    check_pre_game = Tournament.objects.filter(leagues=event)
+    if check_pre_game.exists():
+        check_leagues_com = check_pre_game.filter(is_completed=True)
+        if len(check_pre_game) == len(check_leagues_com) and check_leagues_com.exists():
+            pre_match_round = check_leagues_com.last().elimination_round
+            pre_round_details = Tournament.objects.filter(leagues=event, elimination_round=pre_match_round)
+            teams = list(pre_round_details.values_list("winner_team_id", flat=True))
+            pre_match_number = check_leagues_com.last().match_number
+            court_num = 0
+
+            if len(teams) == 4:
+                match_type = "Semi Final"
+                sets, courts, points = set_num_e, court_num_e, point_num_e
+            elif len(teams) == 2:
+                match_type = "Final"
+                sets, courts, points = set_num_f, court_num_f, point_num_f
+            else:
+                match_type = "Elimination Round"
+                sets, courts, points = set_num_e, court_num_e, point_num_e
+                pre_match_round += 1
+
+            random.shuffle(teams)
+            match_number_now = pre_match_number
+            for i in range(0, len(teams), 2):
+                court_num = (court_num % courts) + 1
+                match_number_now += 1
+                create_tournament_match(
+                    event, teams[i], teams[i+1], match_type, 0 if match_type in ["Semi Final", "Final"] else pre_match_round,
+                    court_num, sets, points, match_number_now
+                )
+            return {"status": status.HTTP_200_OK, "message": f"Matches created for {match_type}"}
+        return {"status": status.HTTP_200_OK, "message": "Previous Round is not completed or not updated"}
+    else:
+        sets, courts, points = set_num_e, court_num_e, point_num_e
+        match_number_now = 0
+        court_num = 0
+        random.shuffle(team_ids)
+
+        if len(team_ids) == 4:
+            match_type = "Semi Final"
+        elif len(team_ids) == 2:
+            match_type = "Final"
+            sets, courts, points = set_num_f, court_num_f, point_num_f
+        else:
+            match_type = "Elimination Round"
+
+        for i in range(0, len(team_ids), 2):
+            court_num = (court_num % courts) + 1
+            match_number_now += 1
+            create_tournament_match(
+                event, team_ids[i], team_ids[i+1], match_type, 1 if match_type == "Elimination Round" else 0,
+                court_num, sets, points, match_number_now
+            )
+        return {"status": status.HTTP_200_OK, "message": f"Matches created for {match_type}"}
+
+def handle_group_stage(event, team_ids, playtype_details):
+    """Handle Group Stage tournament logic."""
+    court_num_r = int(playtype_details[0]["number_of_courts"])
+    set_num_r = int(playtype_details[0]["sets"])
+    point_num_r = int(playtype_details[0]["point"])
+    court_num_e = int(playtype_details[1]["number_of_courts"])
+    set_num_e = int(playtype_details[1]["sets"])
+    point_num_e = int(playtype_details[1]["point"])
+    court_num_f = int(playtype_details[2]["number_of_courts"])
+    set_num_f = int(playtype_details[2]["sets"])
+    point_num_f = int(playtype_details[2]["point"])
+
+    check_pre_game = Tournament.objects.filter(leagues=event)
+    if check_pre_game.exists():
+        all_round_robin_match = Tournament.objects.filter(leagues=event)
+        all_completed_round_robin_match = Tournament.objects.filter(leagues=event, is_completed=True)
+        if all_round_robin_match.count() == all_completed_round_robin_match.count():
+            last_match_type = check_pre_game.last().match_type
+            last_round = check_pre_game.last().elimination_round
+            last_match_number = check_pre_game.last().match_number
+
+            if last_match_type == "Round Robin":
+                teams = select_top_teams(event)
+                if len(teams) != len(RoundRobinGroup.objects.filter(league_for=event)):
+                    return {"status": status.HTTP_200_OK, "message": "Not all groups have winners selected"}
+
+                teams = make_shuffle(teams)
+                match_type = "Elimination Round" if len(teams) > 4 else "Semi Final" if len(teams) == 4 else "Final"
+                sets = set_num_f if len(teams) == 2 else set_num_e
+                courts = court_num_f if len(teams) == 2 else court_num_e
+                points = point_num_f if len(teams) == 2 else point_num_e
+                round_number = 0 if match_type in ["Semi Final", "Final"] else 1
+
+                court_num = 0
+                match_number_now = last_match_number
+                for i in range(0, len(teams), 2):
+                    court_num = (court_num % courts) + 1
+                    match_number_now += 1
+                    create_tournament_match(
+                        event, teams[i], teams[i+1], match_type, round_number,
+                        court_num, sets, points, match_number_now
+                    )
+                return {"status": status.HTTP_200_OK, "message": f"Matches are created for {match_type}"}
+            elif last_match_type in ["Elimination Round", "Semi Final"]:
+                teams = list(Tournament.objects.filter(leagues=event, match_type=last_match_type).values_list("winner_team_id", flat=True))
+                if len(teams) != len(Tournament.objects.filter(leagues=event, match_type=last_match_type)):
+                    return {"status": status.HTTP_200_OK, "message": "Not all groups have winners selected"}
+
+                match_type = "Final" if len(teams) == 2 else "Semi Final" if len(teams) == 4 else "Elimination Round"
+                sets = set_num_f if len(teams) == 2 else set_num_e
+                courts = court_num_f if len(teams) == 2 else court_num_e
+                points = point_num_f if len(teams) == 2 else point_num_e
+                round_number = 0 if match_type in ["Semi Final", "Final"] else last_round + 1
+
+                random.shuffle(teams)
+                court_num = 0
+                match_number_now = last_match_number
+                for i in range(0, len(teams), 2):
+                    court_num = (court_num % courts) + 1
+                    match_number_now += 1
+                    create_tournament_match(
+                        event, teams[i], teams[i+1], match_type, round_number,
+                        court_num, sets, points, match_number_now
+                    )
+                return {"status": status.HTTP_200_OK, "message": f"Matches are created for {match_type} {round_number}"}
+            elif last_match_type == "Final":
+                return {"status": status.HTTP_200_OK, "message": "The event results are out! The event is completed successfully."}
+        return {"status": status.HTTP_200_OK, "message": "All matches in this round are not completed yet."}
+    else:
+        group_result = create_group(team_ids, court_num_r)
+        if group_result["status"] != status.HTTP_200_OK:
+            return group_result
+
+        group_list = group_result["groups"]
+        round_robin_group_details = RoundRobinGroup.objects.filter(league_for=event)
+        if round_robin_group_details.count() == court_num_r:
+            return {"status": status.HTTP_200_OK, "message": f"Round Robin matches already created for {event.name}"}
+        round_robin_group_details.delete()
+
+        serial_number = 0
+        for index, group_teams in enumerate(group_list, start=1):
+            group = RoundRobinGroup.objects.create(court=index, league_for=event, number_sets=set_num_r)
+            for team_id in group_teams:
+                group.all_teams.add(Team.objects.get(id=team_id))
+
+            match_combinations = [(team1, team2) for i, team1 in enumerate(group_teams) for team2 in group_teams[i+1:]]
+            random.shuffle(match_combinations)
+            for team1, team2 in match_combinations:
+                serial_number += 1
+                create_tournament_match(
+                    event, team1, team2, "Round Robin", 0,
+                    index, set_num_r, point_num_r, serial_number, group.id
+                )
+        return {"status": status.HTTP_200_OK, "message": "Matches are created successfully"}
+
+def select_top_teams(event):
+    """Select top two teams from each group based on points and score."""
+    all_group_details = RoundRobinGroup.objects.filter(league_for=event)
+    teams = []
+    for grp in all_group_details:
+        teams_ins = grp.all_teams.all()
+        group_score_point_table = []
+        for team in teams_ins:
+            team_score = {}
+            total_match_detals = Tournament.objects.filter(leagues=event).filter(Q(team1=team) | Q(team2=team))
+            completed_match_details = total_match_detals.filter(is_completed=True)
+            win_match_details = completed_match_details.filter(winner_team=team).count()
+            loss_match_details = completed_match_details.filter(loser_team=team).count()
+            drow_match = len(completed_match_details) - (win_match_details + loss_match_details)
+            point = (win_match_details * 3) + (drow_match * 1)
+            match_list = list(total_match_detals.values_list("id", flat=True))
+            for_score = aginst_score = 0
+            for sc in match_list:
+                co_team_position = Tournament.objects.filter(id=sc).first()
+                set_score = TournamentSetsResult.objects.filter(tournament_id=sc)
+                if co_team_position.team1 == team:
+                    for_score += sum(list(set_score.values_list("team1_point", flat=True)))
+                    aginst_score += sum(list(set_score.values_list("team2_point", flat=True)))
+                else:
+                    for_score += sum(list(set_score.values_list("team2_point", flat=True)))
+                    aginst_score += sum(list(set_score.values_list("team1_point", flat=True)))
+            team_score.update({
+                "uuid": team.uuid, "secret_key": team.secret_key,
+                "completed_match": len(completed_match_details),
+                "win_match": win_match_details, "loss_match": loss_match_details,
+                "drow_match": drow_match, "for_score": for_score,
+                "aginst_score": aginst_score, "point": point
+            })
+            group_score_point_table.append(team_score)
+
+        grp_team = sorted(group_score_point_table, key=lambda x: (x['point'], x['for_score']), reverse=True)
+        top_two_teams = grp_team[:2]
+        teams_ = [Team.objects.get(uuid=top_team["uuid"], secret_key=top_team["secret_key"]).id for top_team in top_two_teams]
+        teams.append(teams_)
+        RoundRobinGroup.objects.filter(id=grp.id).update(seleced_teams=Team.objects.get(uuid=grp_team[0]["uuid"], secret_key=grp_team[0]["secret_key"]))
+    return teams
+
+def handle_round_robin(event, team_ids, playtype_details):
+    """Handle Round Robin tournament logic."""
+    court_num_r = int(playtype_details[0]["number_of_courts"])
+    set_num_r = int(playtype_details[0]["sets"])
+    point_num_r = int(playtype_details[0]["point"])
+
+    if len(team_ids) != event.max_number_team:
+        return {"status": status.HTTP_200_OK, "message": "All teams are not registered"}
+
+    group_result = create_group(team_ids, 1)
+    if group_result["status"] != status.HTTP_200_OK:
+        return group_result
+
+    group_list = group_result["groups"]
+    round_robin_group_details = RoundRobinGroup.objects.filter(league_for=event)
+    if round_robin_group_details.count() == 1:
+        return {"status": status.HTTP_200_OK, "message": f"Round Robin group already created for {event.name}"}
+    round_robin_group_details.delete()
+
+    serial_number = 0
+    for index, group_teams in enumerate(group_list, start=1):
+        group = RoundRobinGroup.objects.create(court=index, league_for=event, number_sets=set_num_r)
+        for team_id in group_teams:
+            group.all_teams.add(Team.objects.get(id=team_id))
+
+        match_combinations = [(team1, team2) for i, team1 in enumerate(group_teams) for team2 in group_teams[i+1:]]
+        random.shuffle(match_combinations)
+        for team1, team2 in match_combinations:
+            serial_number += 1
+            create_tournament_match(
+                event, team1, team2, "Round Robin", 0,
+                index, set_num_r, point_num_r, serial_number, group.id
+            )
+    return {"status": status.HTTP_200_OK, "message": "Matches created for Round Robin"}
+
+def handle_individual_match_play(event, team_ids, playtype_details):
+    """Handle Individual Match Play tournament logic."""
+    court_num_f = int(playtype_details[2]["number_of_courts"])
+    set_num_f = int(playtype_details[2]["sets"])
+    point_num_f = int(playtype_details[2]["point"])
+
+    if Tournament.objects.filter(leagues=event, match_type="Individual Match Play").exists():
+        return {"status": status.HTTP_200_OK, "message": "Matches are already created"}
+    if len(team_ids) < 2:
+        return {"status": status.HTTP_200_OK, "message": "Minimum 2 teams are needed for individual match play"}
+
+    random.shuffle(team_ids)
+    match_number_now = 0
+    for court_num in range(1, court_num_f + 1):
+        match_number_now = court_num
+        for i in range(0, len(team_ids), 2):
+            create_tournament_match(
+                event, team_ids[i], team_ids[i+1], "Individual Match Play", 0,
+                court_num, set_num_f, point_num_f, match_number_now
+            )
+    return {"status": status.HTTP_200_OK, "message": "Matches created for Individual Match Play"}
+
+#### assign match end ###
+## update score
+@login_required(login_url="/user_side/")
+def event_update_score(request, event_id):
+    context = {}
+    query = request.GET.get('q', '')
+    status_filter = request.GET.get('status_filter', '')
+    
+    event = get_object_or_404(Leagues, id=event_id)
+    matches = Tournament.objects.filter(leagues=event).select_related('team1', 'team2', 'leagues')
+    
+    if query:
+        matches = matches.filter(
+            Q(match_number__icontains=query) |
+            Q(team1__name__icontains=query) |
+            Q(team2__name__icontains=query) |
+            Q(match_type__icontains=query)
+        )
+    
+    if status_filter:
+        if status_filter == "completed":
+            matches = matches.filter(is_completed=True)
+        elif status_filter == "incompleted":
+            matches = matches.filter(is_completed=False)
+    
+    # Optimize score fetching with prefetch_related
+    # matches = matches.prefetch_related('tournamentsetsresult_set')
+    
+    for match_ in matches:
+        match_.score = TournamentSetsResult.objects.filter(tournament=match_)
+        match_.set_list = [i+1 for i in range(match_.set_number)]
+    context["matches"] = matches
+    context["event"] = event
+    
+    return render(request, 'sides/update_events_score.html', context=context)
+### update score end
+
+
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST, require_GET
+import json
+
+def update_event_winner(event, match):
+    try:
+        return True
+    except Exception as e:
+        return False
+
+   
+@login_required(login_url="/user_side/")
+@require_POST
+def update_match_scores(request, match_id):
+    try:
+        # Get the match
+        match = get_object_or_404(Tournament, id=match_id)
+        
+        # Parse JSON data from request
+        data = json.loads(request.body)
+        scores = data.get('scores', [])
+        # Update or create scores for each set
+        for score in scores:
+            set_number = score.get('set_number')
+            team1_point = score.get('team1_point')
+            team2_point = score.get('team2_point')
+            
+            # Ensure valid data
+            if set_number is None or team1_point is None or team2_point is None:
+                return JsonResponse({'success': False, 'error': 'Invalid score data'}, status=400)
+            
+            # Update or create TournamentSetsResult
+            tournament_set, created = TournamentSetsResult.objects.get_or_create(
+                tournament=match,
+                set_number=set_number,
+                defaults={
+                    'team1_point': team1_point,
+                    'team2_point': team2_point,
+                    'is_completed': True,
+                    'win_team': match.team1 if team1_point > team2_point else match.team2
+                }
+            )
+            
+            if not created:
+                tournament_set.team1_point = team1_point
+                tournament_set.team2_point = team2_point
+                tournament_set.is_completed = True
+                tournament_set.win_team = match.team1 if team1_point > team2_point else match.team2
+                tournament_set.save()
+        
+        # Refresh match scores
+        match.score = TournamentSetsResult.objects.filter(tournament=match)
+        update_event_winner(event, match)
+        # Prepare response data
+        score_data = [
+            {
+                'set_number': score.set_number,
+                'team1_point': score.team1_point,
+                'team2_point': score.team2_point,
+                'win_team': score.win_team.name if score.win_team else None
+            } for score in match.score
+        ]
+        
+        return JsonResponse({
+            'success': True,
+            'scores': score_data,
+            'is_completed': match.is_completed,
+            'team1_name': match.team1.name if match.team1 else '',
+            'team2_name': match.team2.name if match.team2 else ''
+        })
+    
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+@login_required(login_url="/user_side/")
+@require_GET
+def get_match_scores(request, match_id):
+    try:
+        match = get_object_or_404(Tournament, id=match_id)
+        scores = TournamentSetsResult.objects.filter(tournament=match)
+        
+        score_data = [
+            {
+                'set_number': score.set_number,
+                'team1_point': score.team1_point,
+                'team2_point': score.team2_point
+            } for score in scores
+        ]
+        
+        return JsonResponse({
+            'success': True,
+            'scores': score_data,
+            'team1_name': match.team1.name if match.team1 else '',
+            'team2_name': match.team2.name if match.team2 else ''
+        })
+    
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+@login_required(login_url="/user_side/")
+@require_POST
+def update_tournament_settings(request, match_id):
+    try:
+        match = get_object_or_404(Tournament, id=match_id)
+        
+        # Ensure match is not completed
+        if match.is_completed:
+            return JsonResponse({'success': False, 'error': 'Cannot edit settings for a completed match'}, status=400)
+        
+        # Parse JSON data
+        data = json.loads(request.body)
+        set_number = data.get('set_number')
+        points = data.get('points')
+        
+        # Validate data
+        if not isinstance(set_number, int) or set_number < 1:
+            return JsonResponse({'success': False, 'error': 'Invalid set number'}, status=400)
+        if not isinstance(points, int) or points < 1:
+            return JsonResponse({'success': False, 'error': 'Invalid points value'}, status=400)
+        
+        # Update match
+        match.set_number = set_number
+        match.points = points
+        match.save()
+        
+        return JsonResponse({
+            'success': True,
+            'set_number': match.set_number,
+            'points': match.points,
+            'league_name': match.leagues.name if match.leagues else '',
+            'court_num': match.court_num,
+            'team1_name': match.team1.name if match.team1 else '',
+            'team2_name': match.team2.name if match.team2 else '',
+            'is_completed': match.is_completed
+        })
+    
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
 @login_required(login_url="/user_side/")
@@ -611,8 +1660,10 @@ def match_history(request):
         context["error"] = "Player profile not found."
         return render(request, 'sides/match_history.html', context)
 
-    teams = player.team.all()
+    user_teams = Team.objects.filter(created_by=request.user)
+    teams = list(player.team.all()) + list(user_teams)
     match_history = Tournament.objects.filter(Q(team1__in=teams) | Q(team2__in=teams)).order_by("-id")
+    
     match_history_cal = match_history.only("team1", "team2", "winner_team")
     wins = sum(1 for match_ in match_history_cal if match_.winner_team in teams)
     losses = len(match_history_cal) - wins
@@ -627,8 +1678,6 @@ def match_history(request):
         ).order_by("-id")
 
     total_matches = match_history.count()
-    # print(match_history)
-    # Pagination: 21 matches per page
     paginator = Paginator(match_history, 21)
     page_number = request.GET.get('page')
     paginated_matches = paginator.get_page(page_number)
@@ -653,27 +1702,10 @@ def match_history(request):
     return render(request, 'sides/match_history.html', context)
 
 
+
+
 @login_required(login_url="/user_side/")
-def update_match_score(request):
-    query = request.GET.get('q', '').strip()
-    context = {}
-
-    player = Player.objects.filter(player=request.user).first()
-    if not player:
-        context["error"] = "Player profile not found."
-        return render(request, 'sides/update_score.html', context)
-
-    teams = player.team.all()
-    current_eventlist = Leagues.objects.filter(registered_team__in = teams, is_complete=False).distinct().only("id", "name", "team_type", "image")
-    if query:
-        current_eventlist = current_eventlist.filter(Q(name__icontence = query), Q(team_type__name__icontence = query))
-    context["events"] = current_eventlist
-    return render(request, 'sides/update_score.html', context)
-
-
-#modified
-@login_required(login_url="/user_side/")
-def user_wallet(request):
+def user_wallet_foruser(request):
     start_date = request.GET.get("start_date", None)
     end_date = request.GET.get("end_date", None)
     page = request.GET.get("page", 1)  # Get the current page number from request
@@ -684,7 +1716,7 @@ def user_wallet(request):
     transactions = WalletTransaction.objects.filter(Q(sender=request.user) | Q(reciver=request.user)).order_by("-created_at")
     if start_date and end_date:
         transactions = transactions.filter(created_at__date__gte=start_date, created_at__date__lte=end_date)
-    
+    #print(transactions)
     paginator = Paginator(transactions, 10)  
     transactions_page = paginator.get_page(page)  
 
@@ -713,35 +1745,32 @@ def create_checkout_session(request):
         amount = int(request.POST.get("amount")) * 100  # Convert to cents
         user = request.user
         stripe.api_key = settings.STRIPE_SECRET_KEY 
-        try:
-            session = stripe.checkout.Session.create(
-                payment_method_types=["card"],
-                line_items=[{
-                    "price_data": {
-                        "currency": "usd",
-                        "product_data": {"name": "Add Funds"},
-                        "unit_amount": amount,
-                    },
-                    "quantity": 1,
-                }],
-                mode="payment",
-                success_url=settings.SITE_URL + "/payment-success/?session_id={CHECKOUT_SESSION_ID}",
-                cancel_url=settings.SITE_URL + "/payment-failed/",
-            )
-
-            # Save to AllPaymentsTable with Pending Status
-            AllPaymentsTable.objects.create(
-                user=user,
-                amount=amount / 100,  # Convert from cents to dollars
-                checkout_session_id=session.id,
-                payment_for="AddMoney",
-                status="Pending",
-            )
-
-            return JsonResponse({"id": session.id})
-
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=400)
+        # #print("stripe.api_key", stripe.api_key)
+        session = stripe.checkout.Session.create(
+            payment_method_types=["card"],
+            line_items=[{
+                "price_data": {
+                    "currency": "usd",
+                    "product_data": {"name": "Add Funds"},
+                    "unit_amount": amount,
+                },
+                "quantity": 1,
+            }],
+            mode="payment",
+            success_url=settings.SITE_URL + "/payment-success/?session_id={CHECKOUT_SESSION_ID}",
+            cancel_url=settings.SITE_URL + "/payment-failed/",
+        )
+        # #print("hgsdfhgsa")
+        # Save to AllPaymentsTable with Pending Status
+        AllPaymentsTable.objects.create(
+            user=user,
+            amount=amount / 100,  # Convert from cents to dollars
+            checkout_session_id=session.id,
+            payment_for="AddMoney",
+            status="Pending",
+        )
+        # #print("jsgd")
+        return JsonResponse({"id": session.id})
 
 
 @csrf_exempt
@@ -781,7 +1810,6 @@ def stripe_webhook(request):
         )
 
     return HttpResponse(status=200)
-
 
 @login_required(login_url="/user_side/")
 def payment_success(request):
@@ -837,9 +1865,6 @@ def payment_failed(request):
     return render(request, "payments/payment_failed.html", {"error": "Your payment was unsuccessful."})
 
 
-############piu
-
-###payment for team join
 @csrf_exempt
 def confirm_payment(request):
     if request.method == "POST":
@@ -847,7 +1872,7 @@ def confirm_payment(request):
         event_id = data.get("event_id")
         team_ids = data.get("team_id_list", [])
         total_amount = float(data.get("total_amount", 0))
-        print(data)
+        #print(data)
 
         user = request.user
         event = Leagues.objects.get(id=event_id)
@@ -902,7 +1927,7 @@ def initiate_stripe_payment(request):
     if request.method == "POST":
         try:
             data = json.loads(request.body)
-            print("Received Data:", data)
+            #print("Received Data:", data)
             event_id = data.get("event_id")
             team_ids = data.get("team_id_list", [])
             total_amount = data.get("total_amount", 0)
@@ -910,16 +1935,16 @@ def initiate_stripe_payment(request):
             try:
                 total_amount = float(total_amount)  # Convert from string to float
             except ValueError:
-                print("Error: Invalid total_amount format:", total_amount)
+                #print("Error: Invalid total_amount format:", total_amount)
                 return JsonResponse({"success": False, "message": "Invalid total amount format."})
 
             unit_amount = int(total_amount * 100)  # Convert to cents
 
             if unit_amount <= 0:
-                print("Error: Amount cannot be zero or negative:", unit_amount)
+                #print("Error: Amount cannot be zero or negative:", unit_amount)
                 return JsonResponse({"success": False, "message": "Amount cannot be zero or negative."})
 
-            print("Final Amounts:", total_amount, unit_amount)
+            #print("Final Amounts:", total_amount, unit_amount)
 
             # Create Stripe session
             host = request.get_host()
@@ -940,11 +1965,11 @@ def initiate_stripe_payment(request):
                 cancel_url=request.build_absolute_uri(reverse("user_side:event_view", args=[event_id])),
             )
 
-            print("Session Created:", session)
+            #print("Session Created:", session)
             return JsonResponse({"success": True, "payment_url": session.url, "session_id": session.id})
 
         except Exception as e:
-            print("Stripe Error:", str(e))
+            #print("Stripe Error:", str(e))
             return JsonResponse({"success": False, "message": str(e)})
 
     return JsonResponse({"success": False, "message": "Invalid request."})
@@ -957,7 +1982,7 @@ def stripe_success(request, event_id, team_ids, checkout_session_id):
         session = stripe.checkout.Session.retrieve(checkout_session_id)
         
         total_amount = Decimal(session.amount_total) / 100  # Convert cents to dollars
-        print(total_amount)
+        #print(total_amount)
         payment_status = session.get("payment_status") == "paid"
         payment_method_types = session.get("payment_method_types", [])
 
@@ -1125,7 +2150,7 @@ def search_players(request):
 
     if query:
         players = Player.objects.filter(Q(player__first_name__icontains=query) | Q(player__last_name__icontains=query) | Q(player__username__icontains=query))
-        print(players)
+        #print(players)
         if category: 
             if category == "Women":
                 players = players.filter(player__gender="Female")
@@ -1133,7 +2158,7 @@ def search_players(request):
                 players = players.filter(player__gender="Male")
             else:
                 players = players
-            print(players)
+            #print(players)
 
         player_data = [
             {
@@ -1143,35 +2168,13 @@ def search_players(request):
             }
             for player in players
         ]
-        print(players)
+        #print(players)
         return JsonResponse({"players": player_data})
 
     return JsonResponse({"players": []})
 
 
-@login_required(login_url="/user_side/")
-def start_tournament(request, event_id):
-    check_tour = Leagues.objects.filter(id=event_id).first()
-    tour_create_by = check_tour.created_by
-    max_no_teams = check_tour.max_number_team
-    registered_teams = check_tour.registered_team.count()
-    if registered_teams != max_no_teams:
-        check_tour.max_number_team = registered_teams
-        check_tour.save()
 
-    host = request.get_host()
-    current_site = f"{protocol}://{host}"
-    url = f"{current_site}/team/22fef865dab2109505b61d85df50c5126e24f0c0a10990f2670c179fb841bfd2/"
-    # print(url)
-    payload = {
-        'user_uuid': str(tour_create_by.uuid),
-        'user_secret_key': str(tour_create_by.secret_key),
-        'league_uuid': str(check_tour.uuid),
-        'league_secret_key': str(check_tour.secret_key)
-    }
-    response = requests.post(url, json=payload)
-    # print(response)
-    return redirect('user_side:event_view', event_id=event_id)
 
 
 def check_data_structure(data_structure):
@@ -1191,18 +2194,19 @@ def edit_event(request, event_id):
     cancelation_policy = LeaguesCancellationPolicy.objects.filter(league=event)
 
     tournament_play_type = event.play_type
-        
+    #print(event.team_type, event.team_person, event.play_type)   
     if play_type_details:
         play_type_details = play_type_details.first().data
-        
+
     else:
         play_type_details = [
                     {"name": "Round Robin", "number_of_courts": 0, "sets": 0, "point": 0},
                     {"name": "Elimination", "number_of_courts": 0, "sets": 0, "point": 0},
                     {"name": "Final", "number_of_courts": 0, "sets": 0, "point": 0}
                     ]
-        
+    # #print(play_type_details, "play_type_details")    
     for se in play_type_details:
+        #print(tournament_play_type, "tournament_play_type")
         if tournament_play_type == "Group Stage":
             se["is_show"] = True
 
@@ -1220,8 +2224,12 @@ def edit_event(request, event_id):
             if se["name"] == "Final":
                 se["is_show"] = True
             else:
-                se["is_show"] = False 
-
+                se["is_show"] = False
+        else:
+            # #print("hit")
+            se["is_show"] = True 
+        # #print(se, "se")
+    # #print(play_type_details, "play_type_details")
     context["teams"] = Team.objects.all()
     context["play_type_details"] = play_type_details
     context["policies"] = cancelation_policy
@@ -1295,7 +2303,7 @@ def edit_event(request, event_id):
         data_ = [{"name": "Round Robin", "number_of_courts": courts_1, "sets": sets_1, "point": points_1},
                 {"name": "Elimination", "number_of_courts": courts_2, "sets": sets_2, "point": points_2},
                 {"name": "Final", "number_of_courts": courts_3, "sets": sets_3, "point": points_3}]
-        # print(data_, "data")
+        # #print(data_, "data")
         for se in data_:
             if tournament_play_type == "Group Stage":
                 se["is_show"] = True
@@ -1314,7 +2322,7 @@ def edit_event(request, event_id):
                     se["is_show"] = True
                 else:
                     se["is_show"] = False 
-        # print("hit", data_)
+        # #print("hit", data_)
         play_details.data = data_
         play_details.save()
 
@@ -1536,10 +2544,10 @@ def stripe_success_for_advertisement(request, my_data, checkout_session_id):
         json_data = json.loads(urllib.parse.unquote(my_data))
         duration_id = json_data.get("duration_id")
         form_data = json_data.get("form_data")
-        print(form_data)
+        #print(form_data)
         
         total_amount = Decimal(session.amount_total) / 100  # Convert cents to dollars
-        print(total_amount)
+        #print(total_amount)
         payment_status = session.get("payment_status") == "paid"
         payment_method_types = session.get("payment_method_types", [])
 
@@ -1808,10 +2816,10 @@ def confirm_payment_for_book_club(request):
 
 protocol = settings.PROTOCALL
 def initiate_stripe_payment_for_booking_club(request):
-    print('this function called')
+    # #print('this function called')
     if request.method == "POST":
         data = json.loads(request.body)
-        print('Data received:', data)
+        #print('Data received:', data)
         package_id = data.get('package_id')
         booking_date = data.get('booking_date')
         without_fees = float(data.get('remaining_amount'))
@@ -1898,7 +2906,7 @@ def stripe_success_for_booking_club(request, stripe_fees, my_data, checkout_sess
         # Decode and parse JSON data
         json_bytes = base64.b64decode(my_data)
         request_data = json.loads(json_bytes.decode('utf-8'))
-        print(request_data)
+        #print(request_data)
         booking_date = request_data.get("booking_date")
         date = datetime.strptime(booking_date, "%Y-%m-%d %H:%M:%S")  # Adjust format as needed      
        
@@ -2064,7 +3072,7 @@ def joined_list(request, club_id):
 def confirm_payment_for_join_club(request):
     if request.method == "POST":
         data = json.loads(request.body)
-        print('Data received:', data)
+        #print('Data received:', data)
         club_id = data.get('club_id')
         club = Club.objects.filter(id=club_id).first()
         if JoinClub.objects.filter(user=request.user, club=club).exists():
@@ -2136,7 +3144,7 @@ def confirm_payment_for_join_club(request):
 def initiate_stripe_payment_for_join_club(request):
     if request.method == "POST":
         data = json.loads(request.body)
-        print('Data received:', data)
+        #print('Data received:', data)
         club_id = data.get('club_id')
         club = Club.objects.filter(id=club_id).first()
         without_fees = float(data.get('remaining_amount'))
@@ -2146,7 +3154,7 @@ def initiate_stripe_payment_for_join_club(request):
         charge_amount = round(float(total_charge * 100))
         stripe_fees = Decimal(remaining_amount - without_fees)
 
-        print(charge_amount)
+        #print(charge_amount)
         make_request_data = {"club_id":club.id}
         json_bytes = json.dumps(make_request_data).encode('utf-8')
         my_data = base64.b64encode(json_bytes).decode('utf-8')
@@ -2245,7 +3253,7 @@ def stripe_success_for_join_club(request, stripe_fees, my_data, checkout_session
                 payment_id=checkout_session_id,
                 description=f"${amount_total} is debited from your PickleIt wallet for join club to {club.name}."
             )
-            print(type(get_wallet.balance), get_wallet.balance, type(club_amount), club_amount)
+            #print(type(get_wallet.balance), get_wallet.balance, type(club_amount), club_amount)
             get_wallet.balance += club_amount
             admin_wallet.balance += admin_amount
             get_wallet.save()
@@ -2520,7 +3528,6 @@ def add_my_court(request):
     return render(request, "sides/add_my_court.html")
 
 
-
 def read_notifications(request):
     """
     Marks notifications as read based on provided IDs.
@@ -2543,3 +3550,650 @@ def read_notifications(request):
             return JsonResponse({"error": "Invalid JSON format"}, status=400)
     
     return JsonResponse({"error": "Invalid request method"}, status=405)
+
+
+
+
+@login_required(login_url="/user_side/")
+def subcription_plan(request):
+    plan = [
+            {
+                "id": 4,
+                "name": "Free Version",
+                "price": 0.0,
+                "description": "",
+                "duration_days": 30,
+                "product_id": "PICKLEIT",
+                "features": [
+                    {
+                        "name": "Create Account",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Create a Player Account",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Create Teams",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Join Teams",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Find Courts",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Buy Merchandise",
+                        "is_show": True
+                    },
+                    {
+                        "name": "See Advertisements",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Live Brackets",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Open Play - Schedule and use play",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Match Me - Get matched with Other Players for Open Play, Find Other Players through Match Me",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Share links from Pickleit on other social media platforms",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Pop Up Notifications Opt In",
+                        "is_show": True
+                    },
+                    {
+                        "name": "See Social Feeds",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Join Digital Club",
+                        "is_show": True
+                    },
+                    {
+                        "name": "DUPR Rank Integration",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Pickleit VIP Club",
+                        "is_show": False
+                    },
+                    {
+                        "name": "Pickleit Wallet & Rewards",
+                        "is_show": False
+                    },
+                    {
+                        "name": "Post on Pickleit Social Feeds",
+                        "is_show": False
+                    },
+                    {
+                        "name": "Manage Social Content",
+                        "is_show": False
+                    },
+                    {
+                        "name": "Create and Manage and Pay for Advertisements",
+                        "is_show": False
+                    },
+                    {
+                        "name": "Create and Manage and Send Promotions",
+                        "is_show": False
+                    },
+                    {
+                        "name": "Manage Store and Sell Items on Merchandise Store, Receive Payments",
+                        "is_show": False
+                    },
+                    {
+                        "name": "Create and Host 'Digital Clubs'",
+                        "is_show": False
+                    }
+                ],
+                "is_desable": True,
+                "is_active": True,
+                "expire_on": None
+            },
+            {
+                "id": 6,
+                "name": "Paid Version",
+                "price": 2.99,
+                "description": "",
+                "duration_days": 30,
+                "product_id": "pickleit_4",
+                "features": [
+                    {
+                        "name": "Create Account",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Create a Player Account",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Create Teams",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Join Teams",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Find Courts",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Buy Merchandise",
+                        "is_show": True
+                    },
+                    {
+                        "name": "See Advertisements",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Live Brackets",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Open Play - Schedule and use play",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Match Me - Get matched with Other Players for Open Play, Find Other Players through Match Me",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Share links from Pickleit on other social media platforms",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Pop Up Notifications Opt In",
+                        "is_show": True
+                    },
+                    {
+                        "name": "See Social Feeds",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Join Digital Club",
+                        "is_show": True
+                    },
+                    {
+                        "name": "DUPR Rank Integration",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Pickleit VIP Club",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Pickleit Wallet & Rewards",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Post on Pickleit Social Feeds",
+                        "is_show": False
+                    },
+                    {
+                        "name": "Manage Social Content",
+                        "is_show": False
+                    },
+                    {
+                        "name": "Create and Manage and Pay for Advertisements",
+                        "is_show": False
+                    },
+                    {
+                        "name": "Create and Manage and Send Promotions",
+                        "is_show": False
+                    },
+                    {
+                        "name": "Manage Store and Sell Items on Merchandise Store, Receive Payments",
+                        "is_show": False
+                    },
+                    {
+                        "name": "Create and Host 'Digital Clubs'",
+                        "is_show": False
+                    }
+                ],
+                "is_desable": False,
+                "is_active": False,
+                "expire_on": None
+            },
+            {
+                "id": 8,
+                "name": "Pro Version",
+                "price": 12.99,
+                "description": "",
+                "duration_days": 30,
+                "product_id": "pickleit_6",
+                "features": [
+                    {
+                        "name": "Create Account",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Create a Player Account",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Create Teams",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Join Teams",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Find Courts",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Buy Merchandise",
+                        "is_show": True
+                    },
+                    {
+                        "name": "See Advertisements",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Live Brackets",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Open Play - Schedule and use play",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Match Me - Get matched with Other Players for Open Play, Find Other Players through Match Me",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Share links from Pickleit on other social media platforms",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Pop Up Notifications Opt In",
+                        "is_show": True
+                    },
+                    {
+                        "name": "See Social Feeds",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Join Digital Club",
+                        "is_show": True
+                    },
+                    {
+                        "name": "DUPR Rank Integration",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Pickleit VIP Club",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Pickleit Wallet & Rewards",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Post on Pickleit Social Feeds",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Manage Social Content",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Create and Manage and Pay for Advertisements",
+                        "is_show": False
+                    },
+                    {
+                        "name": "Create and Manage and Send Promotions",
+                        "is_show": False
+                    },
+                    {
+                        "name": "Manage Store and Sell Items on Merchandise Store, Receive Payments",
+                        "is_show": False
+                    },
+                    {
+                        "name": "Create and Host 'Digital Clubs'",
+                        "is_show": False
+                    }
+                ],
+                "is_desable": False,
+                "is_active": False,
+                "expire_on": None
+            },
+            {
+                "id": 10,
+                "name": "Enterprise Version",
+                "price": 59.99,
+                "description": "",
+                "duration_days": 30,
+                "product_id": "pickleit_8",
+                "features": [
+                    {
+                        "name": "Create Account",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Create a Player Account",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Create Teams",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Join Teams",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Find Courts",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Buy Merchandise",
+                        "is_show": True
+                    },
+                    {
+                        "name": "See Advertisements",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Live Brackets",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Open Play - Schedule and use play",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Match Me - Get matched with Other Players for Open Play, Find Other Players through Match Me",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Share links from Pickleit on other social media platforms",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Pop Up Notifications Opt In",
+                        "is_show": True
+                    },
+                    {
+                        "name": "See Social Feeds",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Join Digital Club",
+                        "is_show": True
+                    },
+                    {
+                        "name": "DUPR Rank Integration",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Pickleit VIP Club",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Pickleit Wallet & Rewards",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Post on Pickleit Social Feeds",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Manage Social Content",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Create and Manage and Pay for Advertisements",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Create and Manage and Send Promotions",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Manage Store and Sell Items on Merchandise Store, Receive Payments",
+                        "is_show": True
+                    },
+                    {
+                        "name": "Create and Host 'Digital Clubs'",
+                        "is_show": True
+                    }
+                ],
+                "is_desable": False,
+                "is_active": False,
+                "expire_on": None
+            }
+        ]
+    STRIPE_PUBLISHABLE_KEY = settings.STRIPE_PUBLIC_KEY
+    return render(request, "sides/subcription_plan.html", {"plans": plan, "STRIPE_PUBLISHABLE_KEY": STRIPE_PUBLISHABLE_KEY})
+
+# Set Stripe API key
+stripe.api_key = settings.STRIPE_SECRET_KEY
+
+@login_required
+def create_checkout_session_subcription(request, plan_id):
+    plan = get_object_or_404(SubscriptionPlan, id=plan_id)
+    user = request.user
+
+    try:
+        # Create or retrieve Stripe customer
+        if not hasattr(user, 'stripe_customer_id') or not user.stripe_customer_id:
+            customer = stripe.Customer.create(
+                email=user.email,
+                name=user.username,
+            )
+            user.stripe_customer_id = customer.id
+            user.save()
+
+        # Create a Stripe Checkout Session
+        session = stripe.checkout.Session.create(
+            payment_method_types=['card'],
+            line_items=[{
+                'price_data': {
+                    'currency': 'eur',
+                    'product_data': {
+                        'name': plan.name,
+                    },
+                    'unit_amount': int(plan.price * 100),  # Convert to cents
+                    'recurring': {
+                        'interval': 'month',
+                        'interval_count': 1 if plan.duration_days == 30 else int(plan.duration_days / 30),
+                    },
+                },
+                'quantity': 1,
+            }],
+            mode='subscription',
+            customer=user.stripe_customer_id,
+            success_url=request.build_absolute_uri(
+                reverse('user_side:payment_success') + '?session_id={CHECKOUT_SESSION_ID}'
+            ),
+            cancel_url=request.build_absolute_uri(
+                reverse('user_side:payment_cancel') + '?session_id={CHECKOUT_SESSION_ID}'
+            ),
+            metadata={
+                'plan_id': plan.id,
+                'user_id': user.id,
+            },
+        )
+
+        # Create a pending transaction
+        Transaction.objects.create(
+            user=user,
+            plan=plan,
+            transaction_id=session.id,
+            platform='stripe',
+            status=Transaction.PENDING,
+            receipt_data=json.dumps({'checkout_session_id': session.id}),
+        )
+
+        return JsonResponse({'sessionId': session.id})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+@login_required
+def payment_success_membership(request):
+    session_id = request.GET.get('session_id')
+    if not session_id:
+        return render(request, 'payments/error.html', {'message': 'Invalid session ID'})
+
+    try:
+        # Retrieve the session from Stripe
+        session = stripe.checkout.Session.retrieve(session_id)
+        transaction = Transaction.objects.get(transaction_id=session_id)
+        user = transaction.user
+        plan = transaction.plan
+
+        if session.payment_status == 'paid' and session.status == 'complete':
+            # Update transaction to success
+            transaction.status = Transaction.SUCCESS
+            transaction.receipt_data = json.dumps(session)
+            transaction.save()
+
+            # Create or update subscription
+            subscription, created = Subscription.objects.get_or_create(
+                user=user,
+                defaults={
+                    'plan': plan,
+                    'start_date': make_aware(datetime.now()),
+                    'end_date': make_aware(datetime.now()) + timedelta(days=plan.duration_days),
+                    'is_active': True,
+                }
+            )
+            if not created:
+                subscription.plan = plan
+                subscription.end_date = make_aware(datetime.now()) + timedelta(days=plan.duration_days)
+                subscription.is_active = True
+                subscription.save()
+
+            return render(request, 'payments/sub_success.html', {'plan': plan})
+        else:
+            # Update transaction to failed
+            transaction.status = Transaction.FAILED
+            transaction.receipt_data = json.dumps(session)
+            transaction.save()
+            return render(request, 'payments/error.html', {'message': 'Payment was not completed'})
+    except stripe.error.StripeError as e:
+        return render(request, 'payments/error.html', {'message': f'Stripe error: {str(e)}'})
+    except Transaction.DoesNotExist:
+        return render(request, 'payments/error.html', {'message': 'Transaction not found'})
+
+@login_required
+def payment_cancel_membership(request):
+    session_id = request.GET.get('session_id')
+    if not session_id:
+        return render(request, 'payments/error.html', {'message': 'Invalid session ID'})
+
+    try:
+        # Retrieve the session from Stripe
+        session = stripe.checkout.Session.retrieve(session_id)
+        transaction = Transaction.objects.get(transaction_id=session_id)
+
+        # Update transaction to failed
+        transaction.status = Transaction.FAILED
+        transaction.receipt_data = json.dumps(session)
+        transaction.save()
+
+        return render(request, 'payments/sub_cancel.html', {'message': 'Payment was canceled'})
+    except stripe.error.StripeError as e:
+        return render(request, 'payments/error.html', {'message': f'Stripe error: {str(e)}'})
+    except Transaction.DoesNotExist:
+        return render(request, 'payments/error.html', {'message': 'Transaction not found'})
+
+
+@login_required
+def social_feed(request):
+    # Subquery to check if the user has liked each post
+    user_likes = LikeFeed.objects.filter(
+        user=request.user, post=OuterRef('pk')
+    )
+    
+    # Annotate posts with is_like
+    posts = socialFeed.objects.filter(block=False).annotate(is_like=Exists(user_likes)).order_by('-created_at')
+    print(posts)
+    paginator = Paginator(posts, 50)  # Show 50 posts per page
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+    
+    return render(request, 'sides/social_feed.html', {'page_obj': page_obj})
+
+@login_required
+def add_post(request):
+    if request.method == 'POST':
+        text = request.POST.get('text')
+        file = request.FILES.get('file')
+        post = socialFeed.objects.create(user=request.user, text=text)
+        if file:
+            FeedFile.objects.create(post=post, file=file)
+        messages.success(request, 'Post created successfully!')
+        return redirect('user_side:socail_feed_list')
+    return render(request, 'sides/social_feed.html')
+
+@login_required
+def like_post(request, post_id):
+    post = get_object_or_404(socialFeed, id=post_id)
+    like, created = LikeFeed.objects.get_or_create(post=post, user=request.user)
+    if not created:
+        like.delete()
+    return HttpResponseRedirect(request.META.get('HTTP_REFERER', reverse('user_side:socail_feed_list')))
+
+@login_required
+def like_post_ajax(request, post_id):
+    if request.method == 'POST':
+        post = get_object_or_404(socialFeed, id=post_id)
+        like = LikeFeed.objects.filter(post=post, user=request.user)
+        if like:
+           like.delete()
+           post.number_like = post.number_like - 1
+           is_liked = False
+        else:
+            LikeFeed.objects.create(post=post, user=request.user) 
+            is_liked = True
+        post.save()
+        like_count = post.number_like  # Assuming number_like is a property or method
+        return JsonResponse({
+            'is_liked': is_liked,
+            'like_count': like_count,
+        })
+    return JsonResponse({'error': 'Invalid request'}, status=400)
+
+
+@login_required
+def add_comment(request, post_id):
+    post = get_object_or_404(socialFeed, id=post_id)
+    if request.method == 'POST':
+        comment_text = request.POST.get('comment_text')
+        if comment_text:
+            CommentFeed.objects.create(post=post, user=request.user, comment_text=comment_text)
+            messages.success(request, 'Comment added successfully!')
+    return HttpResponseRedirect(request.META.get('HTTP_REFERER', reverse('user_side:socail_feed_list')))
+
+@login_required
+def view_post(request, post_id):
+    post = get_object_or_404(socialFeed, id=post_id, block=False)
+    comments = post.post_comment.all().order_by('-created_at')
+    return render(request, 'sides/view_post.html', {'post': post, 'comments': comments})
+
+
+
+
+######open play section
+@login_required
+def openplay_form(request):
+    return render(request, 'sides/open_play_list.html')
+
+
+

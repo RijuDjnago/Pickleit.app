@@ -134,9 +134,6 @@ def player_list_(request):
     }
     return render(request, "dashboard/side/player_list.html", context)
 
-
-
-
 def get_custom_pagination_range(page, paginator):
     """
     Generate pagination range: "1 2 ... 10 11 12 ... 23 24 25"
@@ -1858,7 +1855,7 @@ def advertisement_list(request):
 
     context["advertisements"] = ads.values(
         "id", "name", "image", "script_text", "url", "approved_by_admin",
-        "description", "start_date", "end_date", "created_at", "created_by__username"
+        "description", "start_date", "end_date", "created_at", "created_by__username","admin_approve_status"
     )
     return render(request, "dashboard/side/advertisement_list.html", context)
 
@@ -1876,6 +1873,9 @@ def ad_approve(request, ad_id):
     ad = get_object_or_404(Advertisement, id=ad_id)
     ad.approved_by_admin = True
     ad.admin_approve_status = "Approved"
+    if ad.duration:
+        ad.start_date = timezone.now()
+        ad.end_date = timezone.now() + timedelta(days=ad.duration.duration)
     ad.save()
     return redirect(reverse("dashboard:advertisement_list"))
 

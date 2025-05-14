@@ -971,7 +971,7 @@ def team_list_using_pagination(request):
         if check_user.exists():
             user = check_user.first()
             
-            teams_query = Team.objects.annotate(
+            teams_query = Team.objects.exclude(is_disabled=True).annotate(
                 team_rank=Avg(
                     Case(
                         When(
@@ -6918,28 +6918,7 @@ def profile_stats_match_history(request):
             user_info["last_name"] = get_user.last_name
             user_info["is_rank"] = get_user.is_rank
             user_info["profile_image"] = image
-            # subscription = Subscription.objects.filter(user=get_user, end_date__gte=now()).first()
-            # if subscription: 
-            #     plan_id = subscription.plan.id               
-            #     plan_name = subscription.plan.name
-            #     plan_price = subscription.plan.price                
-            #     start_date = subscription.start_date.strftime('%Y-%m-%d')
-            #     end_date = subscription.end_date.strftime('%Y-%m-%d')
-            #     is_active = subscription.is_active()                
-            # else:
-            #     plan_id = None
-            #     plan_name = None
-            #     plan_price = None                
-            #     start_date = None
-            #     end_date = None
-            #     is_active = False
-            # user_info["subscription_plan_id"] = plan_id
-            # user_info["subscription_plan_name"] = plan_name
-            # user_info["subscription_plan_price"] = plan_price
-            # user_info["subscription_start_date"] = start_date
-            # user_info["subscription_end_date"] = end_date
-            # user_info["subscription_is_active"] = is_active 
-
+            
             check_player = Player.objects.filter(player__id=get_user.id)
 
             if check_player.exists():

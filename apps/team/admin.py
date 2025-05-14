@@ -230,37 +230,6 @@ class LeaguesTeamTypeAdmin(admin.ModelAdmin):
 class LeaguesPesrsonTypeAdmin(admin.ModelAdmin):
     list_display = ("name",)
     search_fields = ("name",)
-
-
-
-
-
-
-# @admin.register(Tournament)
-# class TournamentAdmin(admin.ModelAdmin):
-#     list_display = ('leagues', 'match_number', 'team1', 'team2', 'winner_team', 'is_completed', 'playing_date_time')
-#     list_filter = ('is_completed', 'match_type', 'elimination_round')
-#     search_fields = ('leagues__name', 'team1__name', 'team2__name', 'play_ground_name')
-#     readonly_fields = ('uuid', 'created_at')
-#     inlines = [TournamentSetsResultInline]
-
-# @admin.register(TournamentSetsResult)
-# class TournamentSetsResultAdmin(admin.ModelAdmin):
-#     list_display = ('tournament', 'set_number', 'win_team', 'team1_point', 'team2_point', 'is_completed')
-#     list_filter = ('is_completed',)
-#     search_fields = ('tournament__leagues__name', 'win_team__name')
-
-# @admin.register(LeaguesPlayType)
-# class LeaguesPlayTypeAdmin(admin.ModelAdmin):
-#     list_display = ('league_for', 'type_name')
-#     list_filter = ('type_name',)
-#     search_fields = ('league_for__name',)
-
-# @admin.register(RoundRobinGroup)
-# class RoundRobinGroupAdmin(admin.ModelAdmin):
-#     list_display = ('league_for', 'court', 'number_sets', 'all_games_status')
-#     list_filter = ('all_games_status',)
-#     search_fields = ('league_for__name', 'court')
-
+admin.site.register(OpenPlayInvitation)
 admin.site.register(TournamentScoreApproval)
 admin.site.register(TournamentScoreReport)

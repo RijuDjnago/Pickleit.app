@@ -1,0 +1,218 @@
+{% extends 'base/base_user.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="h3 mb-3">Open Play Form</h1>
+    
+    <form id="openPlayForm" method="POST" class="needs-validation" novalidate>
+        {% csrf_token %}
+        
+        <!-- Play Type Selection -->
+        <div class="mb-3">
+            <label for="playType" class="form-label">Play Type</label>
+            <select class="form-select" id="playType" name="play_type" required>
+                <option value="" disabled selected>Select play type</option>
+                <option value="singles">Singles</option>
+                <option value="doubles">Doubles</option>
+            </select>
+            <div class="invalid-feedback">
+                Please select a play type.
+            </div>
+        </div>
+
+        <!-- Team Selection for Doubles -->
+        <div class="mb-3" id="teamSelection" style="display: none;">
+            <label for="team" class="form-label">Select Team</label>
+            <select class="form-select" id="team" name="team">
+                <option value="" disabled selected>Select your team</option>
+                <!-- Teams will be populated dynamically -->
+            </select>
+            <div class="invalid-feedback">
+                Please select a team for doubles play.
+            </div>
+        </div>
+
+        <!-- Location -->
+        <div class="mb-3">
+            <label for="location" class="form-label">Location</label>
+            <input type="text" class="form-control" id="location" name="location" required>
+            <div class="invalid-feedback">
+                Please enter a location.
+            </div>
+        </div>
+
+        <!-- Date and Time -->
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <label for="date" class="form-label">Date</label>
+                <input type="date" class="form-control" id="date" name="date" required>
+                <div class="invalid-feedback">
+                    Please select a date.
+                </div>
+            </div>
+            <div class="col-md-6">
+                <label for="time" class="form-label">Time</label>
+                <input type="time" class="form-control" id="time" name="time" required>
+                <div class="invalid-feedback">
+                    Please select a time.
+                </div>
+            </div>
+        </div>
+
+        <!-- Play Format -->
+        <div class="mb-3">
+            <label for="playFormat" class="form-label">Play Format</label>
+            <select class="form-select" id="playFormat" name="play_format" required>
+                <option value="" disabled selected>Select play format</option>
+                <option value="round_robin">Round Robin</option>
+                <option value="compete_to_final">Compete to Final</option>
+            </select>
+            <div class="invalid-feedback">
+                Please select a play format.
+            </div>
+        </div>
+
+        <!-- Number of Courts -->
+        <div class="mb-3">
+            <label for="courts" class="form-label">Number of Courts</label>
+            <input type="number" class="form-control" id="courts" name="courts" min="1" required>
+            <div class="invalid-feedback">
+                Please enter the number of courts.
+            </div>
+        </div>
+
+        <!-- Match Format -->
+        <div class="mb-3">
+            <label class="form-label">Match Format</label>
+            <div class="row">
+                <div class="col-md-6">
+                    <label for="matchPoints" class="form-label">Match Points</label>
+                    <select class="form-select" id="matchPoints" name="match_points" required>
+                        <option value="" disabled selected>Select points</option>
+                        <option value="11">11 Points</option>
+                        <option value="15">15 Points</option>
+                    </select>
+                    <div class="invalid-feedback">
+                        Please select match points.
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <label for="winBy" class="form-label">Win By</label>
+                    <select class="form-select" id="winBy" name="win_by" required>
+                        <option value="" disabled selected>Select win margin</option>
+                        <option value="1">1 Point</option>
+                        <option value="2">2 Points</option>
+                    </select>
+                    <div class="invalid-feedback">
+                        Please select win margin.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Open Play Type -->
+        <div class="mb-3">
+            <label for="openPlayType" class="form-label">Open Play Type</label>
+            <select class="form-select" id="openPlayType" name="open_play_type" required>
+                <option value="" disabled selected>Select open play type</option>
+                <option value="round_robin_group">Round Robin Group</option>
+                <option value="group_to_final">Group to Final</option>
+            </select>
+            <div class="invalid-feedback">
+                Please select an open play type.
+            </div>
+        </div>
+
+        <!-- Player Search and Invite -->
+        <div class="mb-3">
+            <label class="form-label">Invite Players</label>
+            <div class="card">
+                <div class="card-body">
+                    <!-- Search Filters -->
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <input type="text" class="form-control" id="cityFilter" placeholder="City">
+                        </div>
+                        <div class="col-md-4">
+                            <input type="text" class="form-control" id="stateFilter" placeholder="State">
+                        </div>
+                        <div class="col-md-4">
+                            <input type="number" class="form-control" id="rankingFilter" placeholder="Ranking">
+                        </div>
+                    </div>
+                    
+                    <!-- Player List -->
+                    <div class="mb-3">
+                        <select multiple class="form-select" id="playerList" name="players" size="5">
+                            <!-- Players will be populated dynamically -->
+                        </select>
+                    </div>
+                    
+                    <button type="button" class="btn btn-primary" id="invitePlayers">Invite Players</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Submit Button -->
+        <button type="submit" class="btn btn-success">Create Event</button>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+(function () {
+    'use strict'
+
+    // Form validation
+    var forms = document.querySelectorAll('.needs-validation')
+    Array.prototype.slice.call(forms).forEach(function (form) {
+        form.addEventListener('submit', function (event) {
+            if (!form.checkValidity()) {
+                event.preventDefault()
+                event.stopPropagation()
+            }
+            form.classList.add('was-validated')
+        }, false)
+    })
+
+    // Show/hide team selection based on play type
+    const playType = document.getElementById('playType')
+    const teamSelection = document.getElementById('teamSelection')
+    
+    playType.addEventListener('change', function() {
+        teamSelection.style.display = this.value === 'doubles' ? 'block' : 'none'
+    })
+
+    // Invite players button
+    document.getElementById('invitePlayers').addEventListener('click', function() {
+        const selectedPlayers = Array.from(document.getElementById('playerList').selectedOptions)
+            .map(option => option.value)
+        
+        if (selectedPlayers.length > 0) {
+            // Here you would make an AJAX call to send invitations
+            alert('Invitations sent to selected players!')
+            // Implement actual notification logic here (email, push, in-app)
+        } else {
+            alert('Please select at least one player to invite.')
+        }
+    })
+
+    // This is a placeholder for dynamic player loading
+    function loadPlayers(filters = {}) {
+        // Implement AJAX call to fetch players based on filters
+        // Example: fetch('/api/players?city=' + filters.city + '&state=' + filters.state + '&ranking=' + filters.ranking)
+        // Update playerList options with response
+    }
+
+    // This is a placeholder for dynamic team loading
+    function loadTeams() {
+        // Implement AJAX call to fetch user's teams
+        // Update team select options with response
+    }
+
+})();
+</script>
+{% endblock %}

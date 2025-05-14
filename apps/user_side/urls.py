@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from django.shortcuts import render
 
 app_name = "user_side"
 
@@ -7,6 +8,7 @@ urlpatterns = [
     path('', views.user_login, name="user_login"),
     path('logout_view_user', views.logout_view_user, name="logout_view_user"),
     path('signup/', views.user_signup, name="user_signup"),
+    path('api/nearby-pickleball/', views.nearby_pickleball, name='nearby_pickleball'),
     path('index/', views.index, name="user_index"),
     path('profile/', views.profile, name="user_profile"),
     path('edit_profile/', views.edit_profile, name="edit_profile"),
@@ -17,18 +19,27 @@ urlpatterns = [
     
     
     path('team_view_user/<int:team_id>/', views.team_view_user, name="team_view_user"),
+    path('add_event/', views.add_event, name="add_event"),
     path('event/', views.event, name="event_user"),
     path('event_view/<int:event_id>/', views.event_view, name="event_view"),
+    path('delete_event/<int:event_id>/', views.event_delete, name="delete_event"),
     path('join_team_event/<int:event_id>/', views.join_team_event, name="join_team_event"),
+    path('event_update_score/<int:event_id>/', views.event_update_score, name="event_update_score"),
+    
+    path('event/match/<int:match_id>/update_scores/', views.update_match_scores, name='update_match_scores'),
+    path('event/match/<int:match_id>/get_scores/', views.get_match_scores, name='get_match_scores'),
+    # New URL for updating tournament settings
+    path('event/match/<int:match_id>/update_tournament/', views.update_tournament_settings, name='update_tournament_settings'),
+
+
 
     path("confirm-payment/", views.confirm_payment, name="confirm_payment"),
     path("initiate-stripe-payment/", views.initiate_stripe_payment, name="initiate_stripe_payment"),
     path('stripe_success/<int:event_id>/<str:team_ids>/<str:checkout_session_id>/', views.stripe_success, name='stripe_success'),
 
     path('match_history/', views.match_history, name="match_history_user"),
-    path('update_match_score/', views.update_match_score, name="update_match_score"),
 
-    path('user_wallet/', views.user_wallet, name="user_wallet"),
+    path('user_wallet/', views.user_wallet_foruser, name="user_wallet"),
     path("add-fund/", views.add_fund, name="add_fund"),
     path("create-checkout-session/", views.create_checkout_session, name="create_checkout_session"),
     path('payment-success/', views.payment_success, name="payment-success"),
@@ -77,5 +88,21 @@ urlpatterns = [
     path('add_my_court/', views.add_my_court, name='add_my_court'),
 
     path('read_notifications/', views.read_notifications, name='read_notifications'),
+
+    path('subcription_plan/', views.subcription_plan, name='subcription_plan'),
+    path('membership/checkout/<int:plan_id>/', views.create_checkout_session_subcription, name='create_checkout_session_subcription'),
+    path('membership/success/', views.payment_success_membership, name='payment_success_membership'),
+    path('membership/cancel/', views.payment_cancel_membership, name='payment_cancel_membership'),
+
+
+    path('socail_feed_list/', views.social_feed, name='socail_feed_list'),
+    path('post/add/', views.add_post, name='add_post'),
+    path('like_post_ajax/<int:post_id>/', views.like_post_ajax, name='like_post_ajax'),
+    path('post/<int:post_id>/comment/', views.add_comment, name='add_comment'),
+    path('post/<int:post_id>/', views.view_post, name='view_post'),
+
+
+    path('open_play_form/', views.openplay_form, name="open_play_form"),
+    
 ]
 

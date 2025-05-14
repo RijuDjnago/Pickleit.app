@@ -21,7 +21,7 @@
             <li class="nav-item dropdown">
                 <a class="nav-icon dropdown-toggle" href="#" id="notificationDropdown" data-bs-toggle="dropdown" data-user-id="{{ request.user.id }}">
                     <div class="position-relative">
-                        <i class="align-middle" data-feather="bell"></i>
+                        <i class="fa-regular fa-bell"></i>
                         <span id="notificationCount" class="indicator" style="display: none;">0</span>
                     </div>
                 </a>
@@ -75,7 +75,7 @@
                         <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/No_image_available.svg/2048px-No_image_available.svg.png" class="avatar img-fluid rounded me-1" alt="Charles Hall" /> <span class="text-dark">{{ request.user.first_name }} {{ request.user.last_name }}</span>
                     {% endif %}
                         
-                    
+                    <i class="bi bi-caret-down-fill"></i>
                 </a>
                 <div class="dropdown-menu dropdown-menu-end">
                     <a class="dropdown-item" href="{% url 'user_side:user_profile' %}"><i class="align-middle me-1" data-feather="user"></i> Profile</a>

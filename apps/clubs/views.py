@@ -97,7 +97,7 @@ class BookClubSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = BookClub
-        fields = ["id", "user_first_name", "user_last_name" ,"user_image", "club", "package_ins", "date", "price", "qr_data"]
+        fields = ["id", "user_first_name", "user_last_name" ,"user_image", "club", "package_ins", "date", "price", "qr_data", "apply_date"]
 
 
 # Pagination
@@ -720,7 +720,14 @@ def store_book_club_stripe_payement(request, stripe_fee, my_data, checkout_sessi
             admin_wallet.save()
             user_wallet.balance = 0.0
             user_wallet.save()
-
+            #need to add notification
+            reword_user = User.objects.filter(id=club.user.id).first()
+            message = f"{get_user.first_name} booked your club: {club.name} at {date}"
+            title = "User Booked Club"
+            notify_edited_player(reword_user.id, title, message)
+            club_user = User.objects.filter(id=club.user.id).first()
+            message2 = f"{get_user.first_name} booked your club: {club.name} at {date}"  
+            notify_edited_player(club_user.id, title, message2)
         if payment_status:
             return render(request, "club/success_payment_for_booking_club.html")
         else:

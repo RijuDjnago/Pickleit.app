@@ -1,168 +1,255 @@
 {% extends 'base/base_user.html' %}
 {% load static %}
 {% block style %}
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
 <style>
-    .post-card {
-        border: none;
-        border-radius: 15px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        margin-bottom: 25px;
-        overflow: hidden;
+.post-card {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+        padding: 20px;
+        height: 100%;
+        transition: transform 0.2s;
     }
-
-    .post-image img {
-        width: 100%;
-        height: 350px;
+    .post-card:hover {
+        transform: translateY(-5px);
+    }
+    .post-header {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+    .post-header img {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
         object-fit: cover;
     }
-
-    .post-actions .btn:hover {
-        background: #f0f2f5;
+    .follow-btn {
+        margin-left: auto;
+    }
+    .post-actions {
+        display: flex;
+        gap: 20px;
+        margin-top: 15px;
+    }
+    .post-actions .btn {
+        color: #6c757d;
+        font-size: 0.9rem;
+    }
+    .add-post-btn {
+        position: fixed;
+        bottom: 30px;
+        right: 30px;
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        z-index: 1000;
+    }
+    .navbar-brand {
+        font-weight: bold;
+        font-size: 1.5rem;
+    }
+    .post-content img {
+        max-height: 300px;
+        object-fit: cover;
+        width: 100%;
+        border-radius: 8px;
+    }
+    .comment-section {
+        margin-top: 20px;
+        border-top: 1px solid #e9ecef;
+        padding-top: 15px;
+    }
+    .comment-form {
+        margin-top: 10px;
+    }
+    .comment {
+        margin-bottom: 10px;
+        padding: 10px;
+        background: #f8f9fa;
+        border-radius: 5px;
+    }
+    .post-card .post-content img { height: 240px; object-fit: cover; width: 100%; }
+    @media (max-width: 767.98px) {
+        .add-post-btn {
+            bottom: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            font-size: 1.2rem;
+        }
+        .post-card {
+            padding: 15px;
+        }
     }
 </style>
 {% endblock %}
 {% block content %}
-<h1 class="h3 mb-3"><strong>Analytics</strong> Dashboard</h1>
 <div class="row">
-    <div class="col-xl-6 col-xxl-5 d-flex">
-        <div class="w-100">
-            <div class="row">
-                <div class="col-sm-6">
-                    <div class="card">
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col mt-0">
-                                    <h5 class="card-title">Your Teams</h5>
-                                </div>
-
-                                <div class="col-auto">
-                                    <div class="stat text-primary">
-                                        <i class="align-middle" data-feather="truck"></i>
-                                    </div>
-                                </div>
+    <div class="col-12">      
+        <div class="row">
+            <div class="col-lg-3 col-md-3 col-sm-12">
+                <div class="card nw-card w-100">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col mt-0">
+                                <h5 class="card-title text-white">Your Teams</h5>
                             </div>
-                            <h1 class="mt-1 mb-3">{{user_teams_count}}</h1>
-                            <div class="mb-0">
-                                <span class="text-muted"><a href="#">Click</a> view for team list</span>
+        
+                            <div class="col-auto">
+                                <div class="stat text-primary">
+                                    <i class="fa-solid fa-people-group"></i>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    <div class="card">
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col mt-0">
-                                    <h5 class="card-title">Completed event</h5>
-                                </div>
-
-                                <div class="col-auto">
-                                    <div class="stat text-primary">
-                                        <i class="align-middle" data-feather="users"></i>
-                                    </div>
-                                </div>
-                            </div>
-                            <h1 class="mt-1 mb-3">{{completed_event_count}}</h1>
-                            <div class="mb-0">
-                                <span class="text-muted"><a href="#">Click</a> view for event list</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-sm-6">
-                    <div class="card">
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col mt-0">
-                                    <h5 class="card-title">Balance</h5>
-                                </div>
-
-                                <div class="col-auto">
-                                    <div class="stat text-primary">
-                                        <i class="align-middle" data-feather="dollar-sign"></i>
-                                    </div>
-                                </div>
-                            </div>
-                            <h1 class="mt-1 mb-3">${{balance}}</h1>
-                            <div class="mb-0">
-                                <span class="text-muted"><a href="#">Click</a> view for wallet details</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="card">
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col mt-0">
-                                    <h5 class="card-title">Join event</h5>
-                                </div>
-
-                                <div class="col-auto">
-                                    <div class="stat text-primary">
-                                        <i class="align-middle" data-feather="shopping-cart"></i>
-                                    </div>
-                                </div>
-                            </div>
-                            <h1 class="mt-1 mb-3">{{join_event_count}}</h1>
-                            <div class="mb-0">
-                                <span class="text-muted"><a href="#">Click</a> view for event list</span>
-                            </div>
+                        <h4 class="h1 mt-1 mb-3 text-white">{{user_teams_count}}</h4>
+                        <div class="mb-0">
+                            <span class="text-white"><a href="{% url 'user_side:find_my_team_list' %}">Click</a> view for team list</span>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
-    <div class="col-xl-6 col-xxl-7">
-        <div class="card flex-fill w-100 shadow-sm">
-            <div class="card-header ">
-                <h5 class="card-title mb-0 ">Match History (Last 5 Records)</h5>
-            </div>
-            <div class="card-body py-3" style="min-height: 130px; display: flex; align-items: center; justify-content: center;">
-
-                {% if match_history %}
-                    <div class="w-100" style="max-height: 300px; overflow-y: auto;">
-                        <ul class="list-group w-100" id="matchHistory">
-                            {% for match in match_history %}
-                                <li class="list-group-item d-flex align-items-center">
-                                    
-                                    {% if match.team1.image %}
-                                        <img src="{{ match.team1.image }}" class="rounded me-3" width="75" height="75" alt="{{ match.team1.name }}">
-                                    {% else %}
-                                        <img src="https://c8.alamy.com/comp/BK720G/vector-of-no-i-in-team-teamwork-message-BK720G.jpg" class="rounded me-3" width="75" height="75" alt="No Image">
-                                    {% endif %}
-                                    
-                                    <span>VS</span>
-                                    
-                                    {% if match.team2.image %}
-                                        <img src="{{ match.team2.image }}" class="rounded ms-3 me-3" width="75" height="75" alt="{{ match.team2.name }}">
-                                    {% else %}
-                                        <img src="https://c8.alamy.com/comp/BK720G/vector-of-no-i-in-team-teamwork-message-BK720G.jpg" class="rounded ms-3 me-3" width="75" height="75" alt="No Image">
-                                    {% endif %}
-                                    
-                                    <div>
-                                        <h5 class="mb-0">Tournament: {{ match.leagues }}</h5>
-                                        <small>Score: {{ match.winner_team_score }} - {{ match.loser_team_score }}</small>
-                                        <br>
-                                        <small>Teams: {{ match.team1.name }} vs {{ match.team2.name }}</small>
-                                    </div>
-                                </li>
-                            {% endfor %}   
-                        </ul>
+            <div class="col-lg-3 col-md-3 col-sm-12">
+                <div class="card nw-card w-100">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col mt-0">
+                                <h5 class="card-title text-white">Balance</h5>
+                            </div>
+        
+                            <div class="col-auto">
+                                <div class="stat text-primary">
+                                    <i class="fa-solid fa-wallet"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <h4 class="h1 mt-1 mb-3 text-white">${{balance}}</h4>
+                        <div class="mb-0">
+                            <span class="text-white"><a href="{% url 'user_side:user_wallet' %}">Click</a> view for wallet details</span>
+                        </div>
                     </div>
-                {% else %}
-                    <p id="noDataMessage" class="text-muted text-center w-100">No match history available</p>
-                {% endif %}
-                
+                </div>
             </div>
-            
+            <div class="col-lg-3 col-md-3 col-sm-12">
+                <div class="card nw-card w-100">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col mt-0">
+                                <h5 class="card-title text-white">Join event</h5>
+                            </div>
+        
+                            <div class="col-auto">
+                                <div class="stat text-primary">
+                                    <i class="fa-solid fa-award"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <h4 class="h1 mt-1 mb-3 text-white">{{join_event_count}}</h4>
+                        <div class="mb-0">
+                            <span class="text-white"><a href="{% url 'user_side:event_user' %}">Click</a> view for event list</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-3 col-sm-12">
+                <div class="card nw-card w-100">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col mt-0">
+                                <h5 class="card-title text-white">Subcription</h5>
+                            </div>
+        
+                            <div class="col-auto">
+                                <div class="stat text-primary">
+                                    <i class="fa-solid fa-crown"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <h4 class="h1 mt-1 mb-3 text-white">Free</h4>
+                        <div class="mb-0">
+                            <span class="text-white"><a href="{% url 'user_side:subcription_plan' %}" >Click</a> Upgrate plan </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
 <div class="row mt-4">
     <div class="col-xl-12">
+        <h5 class="card-title mb-3">Match History</h5>
+        
+        <div class="row row-cols-1 row-cols-md-3 g-4">
+        {% for match in match_history %}
+            <div class="col-lg-4 col-md-6 col-sm-12">
+                <div class="versus-card">
+                    <h3><span><i class="" data-feather="compass"></i></span>{{ match.leagues.name }}</h3>
+                    <div class="v-team">
+                        <div class="v-team-left">
+                            <p><img src="https://pickleit.app/static/images/pickleit_newlogo.jpg" alt="" class="me-2">{{ match.team1.name }}</p>
+                            <p><img src="https://pickleit.app/static/images/pickleit_newlogo.jpg" alt="" class="me-2">{{ match.team2.name }}</p>
+                        </div>
+                        <div class="v-team-right">
+                            <p>{{ match.created_at.date}} <span>{{ match.created_at.time}}</span></p>
+                        </div>
+                    </div>
+                    <div class="v-info">
+                        <p><strong>Match</strong> {{ match.match_number }}</p>
+                        <a class="btn btn-info" data-bs-toggle="collapse" href="#showdata{{ match.id }}" role="button" aria-expanded="false" aria-controls="showdata">View <i class="align-middle" data-feather="chevron-right"></i></a>
+                    </div>
+                    <div class="collapse mt-2" id="showdata{{ match.id }}">
+                        <div class="card card-body">
+                            <table class="table">
+                                <thead>
+                                <tr>
+                                    <th>Sr. No.</th>
+                                    <th>Yours Score</th>
+                                    <th>Opponents Score</th>
+                                    <th>Status</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                    {% for score in match.scores %}
+                                    <tr>
+                                    <td>{{ score.set_number }}</td>
+                                    {% if match.team1 == match.opponent %}
+                                        <td>{{score.team2_point}}</td>
+                                        <td>{{score.team1_point}}</td>
+                                    {% else %}
+                                        <td>{{score.team1_point}}</td>
+                                        <td>{{score.team2_point}}</td>
+                                    {% endif %}
+                                    <td>{% if score.win_team == match.opponent %}<a href="javascript:void(0);" class="btn btn-danger">Lose</a>{% else %}<a href="javascript:void(0);" class="btn btn-success">Win</a>{% endif %}<td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% empty %}
+            <div class="col">
+                <p>No posts available.</p>
+            </div>
+        {% endfor %}
+    </div>
+    </div>
+</div>
+
+
+<div class="row mt-4">
+    <div class="col-xl-12">
         <div class="card">
             <div class="card-header">
-                <h5 class="card-title mb-0 ">Nearby Clubs & Pickleball Courts</h5>
+                <h5 class="card-title mb-0">Nearby Clubs & Pickleball Courts</h5>
             </div>
             <div class="card-body">
                 <input id="locationSearch" class="form-control mb-3" type="text" placeholder="Search for location...">
@@ -174,96 +261,244 @@
 
 <div class="row mt-4">
     <div class="col-xl-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="card-title mb-0">Social Feed</h5>
-            </div>
-            <div class="card-body">
-                <div class="container-fluid">
-                    {% if socail_feed_list %}
-                        {% for feed in socail_feed_list %}
-                            <div class="post-card card">
-                                <div class="card-header d-flex justify-content-between align-items-center bg-light">
-                                    <div class="d-flex align-items-center">
-                                        <img src="{{feed.user.image.url}}" class="rounded-circle me-2" width="45" height="45" alt="Author">
-                                        <div>
-                                            <h6 class="mb-0 fw-bold">{{feed.user.first_name}} <span class="badge bg-primary ms-1">✓</span></h6>
-                                            <small class="text-muted">{{feed.created_at}}</small>
-                                        </div>
-                                    </div>
-                                    <div class="dropdown">
-                                        <button class="btn btn-link text-muted p-0" data-bs-toggle="dropdown">
-                                            <i class="bi bi-three-dots"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                                <div class="card-body">
-                                    {{feed.text}}
-                                </div>
-                                <div class="post-image">  
-                                    
-                                    {% if feed.image %}
-                                        <img src="{{feed.image}}" alt="Ocean image">
-                                    {% else %}
-                                        <img src="https://thumb.ac-illust.com/b1/b170870007dfa419295d949814474ab2_t.jpeg" alt="Ocean image">
-                                    {% endif %}
-                                         
-                                    
-                                </div>
-                                <div class="card-footer d-flex justify-content-between align-items-center">
-                                    <div class="d-flex align-items-center">
-                                        <img src="https://e8gsb.csb.app/images/like.svg" width="24" height="24" class="me-2" alt="Like">
-                                        <span>{{feed.number_like}}</span>
-                                    </div>
-                                    <div class="text-muted">
-                                        <span class="me-3">{{feed.number_comment}}</span>
-                                    </div>
-                                </div>
-                                <div class="d-flex border-top p-2">
-                                    <div class="btn-group w-100" role="group">
-                                        <button class="btn text-secondary"><i class="bi bi-hand-thumbs-up me-1"></i> Like</button>
-                                        <button class="btn text-secondary"><i class="bi bi-chat me-1"></i> Comment</button>
-                                    </div>
-                                    <div class="d-flex align-items-center ms-2">
-                                        <img src="https://i.postimg.cc/B6TCqCDS/seller3.jpg" class="rounded-circle" width="25" height="25" alt="User">
-                                        <i class="bi bi-caret-down-fill"></i>
-                                    </div>
-                                </div>
-                            </div>
-                        {% endfor %}   
-                    {% endif %}
+        <h5 class="card-title mb-3">Social Feed</h5>
+        
+        <div class="row row-cols-1 row-cols-md-3 g-4">
+        {% for post in socail_feed_list %}
+            <div class="col">
+                <div class="post-card">
+                    <div class="post-header">
+                        <img src="{% if post.user.profile.image %}{{ post.user.profile.image.url }}{% else %}https://randomuser.me/api/portraits/men/{{ forloop.counter }}.jpg{% endif %}" alt="User Avatar">
+                        <div>
+                            <small class="text-muted"> <b>{{ post.user.first_name }} {{ post.user.last_name }}{{post.is_like}}</b></small>
+                            <br>
+                            <small class="text-muted">{{ post.created_at|date:"F d, Y" }}</small>
+                        </div>
+                        <button class="btn btn-outline-primary btn-sm follow-btn">Follow</button>
+                    </div>
+                    <div class="post-content mt-3">
+                        <p>{{ post.text }}</p>
+                        {% for file in post.post_file.all %}
+                            {% if file.file %}
+                                <img src="{{ file.file.url }}" alt="Post Image">
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                    <div class="post-actions">
+                        <button class="btn btn-link like-btn" data-post-id="{{ post.id }}" type="button">
+                            <i class="bi bi-heart{% if post.is_like %} text-danger{% endif %}"></i> 
+                            <span class="like-count">({{ post.number_like }})</span>
+                        </button>
+                        <button class="btn btn-link" data-bs-toggle="collapse" data-bs-target="#comments-{{ post.id }}">
+                            <i class="bi bi-chat"></i> ({{ post.number_comment }})
+                        </button>
+                        <button class="btn btn-link" onclick="copyLink('{% url 'user_side:view_post' post.id %}')">
+                            <i class="bi bi-share"></i>
+                        </button>
+                        <a class="btn btn-link" href="{% url 'user_side:view_post' post.id %}">
+                            <i class="bi bi-eye"></i>
+                        </a>
+                    </div>
+                    <div class="comment-section collapse" id="comments-{{ post.id }}">
+                        {% for comment in post.post_comment.all %}
+                        <div class="comment">
+                            <strong>{{ comment.user.username }}</strong>: {{ comment.comment_text }}
+                            <small class="text-muted">{{ comment.created_at|date:"F d, Y H:i" }}</small>
+                        </div>
+                        {% endfor %}
+                        <form class="comment-form" action="{% url 'user_side:add_comment' post.id %}" method="POST">
+                            {% csrf_token %}
+                            <textarea class="form-control mb-2" rows="2" name="comment_text" placeholder="Add a comment..."></textarea>
+                            <button type="submit" class="btn btn-primary btn-sm">Comment</button>
+                        </form>
+                    </div>
                 </div>
             </div>
-        </div>
+        {% empty %}
+            <div class="col">
+                <p>No posts available.</p>
+            </div>
+        {% endfor %}
+    </div>
     </div>
 </div>
 
 {% endblock %}
 
 {% block scripts %}
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAQ_OGAb4yuL8g55IMufP3Dwd4yjrWxrdI&callback=initMap" async defer></script>
-<script>
-    function initMap() {
-        var map = new google.maps.Map(document.getElementById('map'), {
-            center: { lat: 37.7749, lng: -122.4194 }, // Default location
-            zoom: 12
-        });
-        var input = document.getElementById('locationSearch');
-        var searchBox = new google.maps.places.SearchBox(input);
-        map.controls[google.maps.ControlPosition.TOP_LEFT].push(input);
 
-        searchBox.addListener('places_changed', function() {
-            var places = searchBox.getPlaces();
-            if (places.length === 0) return;
-            var bounds = new google.maps.LatLngBounds();
-            places.forEach(function(place) {
-                if (!place.geometry) return;
-                bounds.extend(place.geometry.location);
-            });
-            map.fitBounds(bounds);
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://maps.googleapis.com/maps/api/js?key={{ API_KEY }}&libraries=places"></script>
+<!-- JavaScript for Map and Autocomplete -->
+<script>
+    // Initialize the map
+    var map = L.map('map').setView([37.7749, -122.4194], 13); // Default: San Francisco
+
+    // Add OpenStreetMap tiles
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    // Layer to manage markers
+    var markersLayer = L.layerGroup().addTo(map);
+
+    // Function to clear existing markers
+    function clearMarkers() {
+        markersLayer.clearLayers();
+    }
+
+    // Function to plot markers from API data
+    function plotMarkers(data) {
+        clearMarkers(); // Remove old markers
+
+        // Add player markers (blue)
+        data.player_data.forEach(function(player) {
+            L.marker([parseFloat(player.lat), parseFloat(player.lng)], {
+                icon: L.icon({
+                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
+                    iconSize: [25, 41],
+                    iconAnchor: [12, 41],
+                    popupAnchor: [1, -34]
+                })
+            })
+            .bindPopup(`<b>${player.name}</b><br>${player.description}`)
+            .addTo(markersLayer);
+        });
+
+        // Add event markers (red)
+        data.event_data.forEach(function(event) {
+            L.marker([parseFloat(event.lat), parseFloat(event.lng)], {
+                icon: L.icon({
+                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+                    iconSize: [25, 41],
+                    iconAnchor: [12, 41],
+                    popupAnchor: [1, -34]
+                })
+            })
+            .bindPopup(`<b>${event.name}</b><br>${event.description}`)
+            .addTo(markersLayer);
         });
     }
+
+    // Google Places Autocomplete
+    var input = document.getElementById('locationSearch');
+    var autocomplete = new google.maps.places.Autocomplete(input, {
+        types: ['geocode'], // Limit to addresses
+        fields: ['place_id', 'geometry', 'formatted_address'] // Optimize API usage
+    });
+
+    // Handle place selection
+    autocomplete.addListener('place_changed', function() {
+        var place = autocomplete.getPlace();
+        if (!place.geometry || !place.geometry.location) {
+            alert('No details available for input: "' + place.name + '"');
+            return;
+        }
+
+        // Center map on selected location
+        var lat = place.geometry.location.lat();
+        var lng = place.geometry.location.lng();
+        map.setView([lat, lng], 13);
+
+        // Fetch nearby players and events
+        fetch('/user_side/api/nearby-pickleball/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ lat: lat, lng: lng })
+        })
+        .then(response => response.json())
+        .then(data => {
+            plotMarkers(data); // Plot markers
+        })
+        .catch(error => {
+            console.error('Error fetching data:', error);
+           
+        });
+    });
+
+    // Handle Enter key for manual search
+    input.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter' && this.value.trim() !== '') {
+            var query = this.value;
+            // Use Google Geocoding API to convert query to coordinates
+            fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=YOUR_GOOGLE_API_KEY`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'OK' && data.results.length > 0) {
+                        var lat = data.results[0].geometry.location.lat;
+                        var lng = data.results[0].geometry.location.lng;
+                        map.setView([lat, lng], 13);
+
+                        // Fetch nearby players and events
+                        fetch('/user_side/api/nearby-pickleball/', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ lat: lat, lng: lng })
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            plotMarkers(data);
+                        })
+                        .catch(error => {
+                            console.error('Error fetching data:', error);
+                            alert('Failed to load nearby players and events');
+                        });
+                    } else {
+                        alert('Location not found');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error geocoding:', error);
+                    alert('Error searching location');
+                });
+        }
+    });
 </script>
-<script>google.maps.event.addDomListener(window, 'load', initMap);</script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const likeButtons = document.querySelectorAll('.like-btn');
+    
+    likeButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const postId = this.getAttribute('data-post-id');
+            const heartIcon = this.querySelector('i');
+            const likeCountSpan = this.querySelector('.like-count');
+            
+            fetch(`/user_side/like_post_ajax/${postId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/json',
+                },
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                    return;
+                }
+                // Update heart icon
+                if (data.is_liked) {
+                    heartIcon.classList.add('text-danger');
+                } else {
+                    heartIcon.classList.remove('text-danger');
+                }
+                // Update like count
+                likeCountSpan.textContent = `(${data.like_count})`;
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while processing your request.');
+            });
+        });
+    });
+});
+</script>
 {% endblock %}
 

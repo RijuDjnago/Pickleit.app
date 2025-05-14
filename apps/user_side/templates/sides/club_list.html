@@ -12,7 +12,10 @@
 {% endblock %}
 
 {% block content %}
-<h1 class="h3 mb-3 text-center">🏆 Clubs Listing</h1>
+
+    <div class="d-flex justify-content-between align-items-center mb-4"> 
+        <h1 class="h3 mb-0">Clubs Listing</h1> 
+    </div>
 
 <div id="map" style="height: 400px; width: 100%; border-radius: 10px;"></div>
 
@@ -23,10 +26,10 @@
 </div>
 
 <!-- Clubs List -->
-<div class="row">
+<div class="row club-list">
     {% for club in clubs %}
-        <div class="col-md-6 col-lg-4 mb-3">
-            <div class="card shadow-sm p-3">
+        <div class="col-lg-4 col-md-4 col-sm-12 mb-3">
+            <div class="card">
                 <!-- Club Images (Carousel) -->
                 <div id="clubCarousel{{ club.id }}" class="carousel slide" data-bs-ride="carousel">
                     <div class="carousel-inner">
@@ -53,11 +56,11 @@
                 <!-- Club Info -->
                 <div class="mt-3">
                     <h5 class="mb-1"><a href="{% url 'user_side:club_view' club.id %}" class="text-decoration-none text-dark">{{ club.name }}</a></h5>
-                    <p class="text-muted small mb-1">📍 {{ club.location }}</p>
-                    <p class="text-muted small mb-1">🕒 {{ club.open_time|default:"N/A" }} - {{ club.close_time|default:"N/A" }}</p>
-                    <p class="text-muted small mb-1">☎️ {{ club.contact }}</p>
-                    <p class="text-muted small mb-1">⭐ Rating: {{ club.overall_rating|floatformat:1 }}</p>
-                    <p class="text-muted small mb-1">💰 Membership Fee: {{ club.join_amount }} {{ club.unit }}</p>
+                    <p class="text-muted small mb-1"><i class="bi bi-geo"></i> {{ club.location }}</p>
+                    <p class="text-muted small mb-1"><i class="bi bi-clock"></i> {{ club.open_time|default:"N/A" }} - {{ club.close_time|default:"N/A" }}</p>
+                    <p class="text-muted small mb-1"><i class="bi bi-telephone"></i> {{ club.contact }}</p>
+                    <p class="text-muted small mb-1"><i class="bi bi-star-fill"></i> Rating: {{ club.overall_rating|floatformat:1 }}</p>
+                    <p class="text-muted small mb-1"><i class="bi bi-tag"></i> Membership Fee: {{ club.join_amount }} {{ club.unit }}</p>
                 </div>
             </div>
         </div>

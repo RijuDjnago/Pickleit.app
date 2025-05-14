@@ -27,19 +27,19 @@
         {% csrf_token %}
 
         <!-- Team Name -->
-        <div class="form-group">
+        <div class="form-group mb-3">
             <label for="team_name">Team Name</label>
             <input type="text" id="team_name" name="team_name" class="form-control" placeholder="Enter team name" required>
         </div>
 
         <!-- Location -->
-        <div class="form-group">
+        <div class="form-group mb-3">
             <label for="location">Location</label>
             <input type="text" id="location" name="location" class="form-control" placeholder="Enter location">
         </div>
 
         <!-- Team Person -->
-        <div class="form-group">
+        <div class="form-group mb-3">
             <label for="team_person">Team Type</label>
             <select id="team_person" name="team_person" class="form-control">
                 <option value="">Select Type</option>
@@ -49,7 +49,7 @@
         </div>
 
         <!-- Team Category -->
-        <div class="form-group">
+        <div class="form-group mb-3">
             <label for="team_type">Category</label>
             <select id="team_type" name="team_type" class="form-control">
                 <option value="">Select Category</option>
@@ -61,13 +61,13 @@
         </div>
 
         <!-- Team Image -->
-        <div class="form-group">
+        <div class="form-group mb-3">
             <label for="team_image">Team Image</label>
-            <input type="file" id="team_image" name="team_image" class="form-control-file">
+            <input type="file" id="team_image" name="team_image" class="form-control form-control-file">
         </div>
 
         <!-- Search & Select Players -->
-        <div class="form-group">
+        <div class="form-group mb-3">
             <label>Search & Select Players</label>
             <input type="text" id="player-search" class="form-control" placeholder="Search players...">
             <div id="player-list" class="mt-2"></div>
@@ -100,7 +100,7 @@ document.getElementById('player-search').addEventListener('keyup', function() {
                     div.style.cursor = 'pointer';
 
                     let img = document.createElement('img');
-                    img.src = player.image ? player.image : "{% static 'images/default-user.png' %}";
+                    img.src = (player.player && player.player.image && player.player.image !== "null") ? `/media/${player.player.image}`: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQADjfoADAlJPrsl_hiiOMeE-FBor-i6hEAVg&s";
                     img.alt = player.name;
                     img.classList.add('rounded-circle', 'mr-2');
                     img.style.width = '40px';
@@ -191,7 +191,7 @@ function initAutocomplete() {
 // Load Google Maps API with Places API
 function loadGoogleMapsAPI() {
     var script = document.createElement('script');
-    script.src = 'https://maps.googleapis.com/maps/api/js?key=AIzaSyAQ_OGAb4yuL8g55IMufP3Dwd4yjrWxrdI&libraries=places&callback=initAutocomplete';
+    script.src = 'https://maps.googleapis.com/maps/api/js?key=AIzaSyAfBo6-cZlOpKGrD1ZYwISIGjYvhH_wPmk&libraries=places&callback=initAutocomplete';
     script.async = true;
     document.head.appendChild(script);
 }

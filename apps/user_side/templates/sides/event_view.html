@@ -3,78 +3,24 @@
 
 {% block content %}
 
-<!-- Modal -->
-<!-- <div class="modal fade" id="eventModal" tabindex="-1" aria-labelledby="eventModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="eventModalLabel">{{ event.name }} || {{ event.team_type }} || {{ event.team_person }}</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="event-detail">
-                    <strong>Event Name:</strong> {{ event.name }}
-                </div>
-                <div class="event-detail">
-                    <strong>Registration end Date:</strong> {{ event.registration_end_date }}
-                </div>
-                <div class="event-detail">
-                    <strong>Start Date:</strong> {{ event.leagues_start_date }}
-                </div>
-                <div class="event-detail">
-                    <strong>Total fees:</strong> {{total_fees}}
-                </div>
-                <div class="event-detail">
-                    <strong>Your wallet balance:</strong> $ {{balance}}
-                </div>
 
-                <input type="text" id="teamSearch" class="form-control mt-3 mb-2" placeholder="Search teams...">
-
-                <h6 class="mt-4 mb-3"><strong>Select Teams:</strong></h6>
-                <div class="team-container-wrapper">
-                    <div class="team-container" id="teamContainer">
-                        {% for team in my_team %}
-                            <label class="team-card">
-                                <input type="checkbox" class="team-checkbox" value="1">
-                                <div class="team-content">
-                                    <div class="team-info">
-                                        <h6>{{team.name}} || {{team.team_person}} || {{team.team_type}}</h6>
-                                        <div class="player-list">
-                                            
-                                            {% for player in team.players %}
-                                                <div class="player-item">
-                                                    <img src="https://plus.unsplash.com/premium_photo-1689568126014-06fea9d5d341?fm=jpg&q=60&w=3000&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MXx8cHJvZmlsZXxlbnwwfHwwfHx8MA%3D%3D" alt="Player 1">
-                                                    <span>{{player.player.first_name}} {{player.player.last_name}}</span>
-                                                </div>
-                                            {% endfor %}
-                                                
-                                            
-                                        </div>
-                                    </div>
-                                    <img src="https://img.freepik.com/premium-vector/avatar-profile-icon-flat-style-male-user-profile-vector-illustration-isolated-background-man-profile-sign-business-concept_157943-38764.jpg?semt=ais_hybrid" alt="Development Team" class="team-image">
-                                </div>
-                            </label> 
-                        {% endfor %}
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-submit" id="submitBtn">Submit</button>
-            </div>
-        </div>
-    </div>
-</div> -->
 <div class="card col-lg-12" style="max-width: auto;">
-    <div class="card-header text-center">
-        <div class="h3 mb-0 col-lg-12">
+    <div class="card-header text-center d-flex justify-content-between align-items-center gap-2 flex-wrap">
+        <div class="h5 mb-0 ">
             {{ event.name }} || {{ event.team_type }} || {{ event.team_person }}
         </div>
-        <div class="col-lg-12">
-            {% if event.created_by == request.user %}
-                <a href="{% url 'user_side:edit_event' event.id %}" class="btn btn-danger btn-sm">Edit Event</a>
-            {% endif %}
+        <div class="">
             <a href="{% url 'user_side:event_user' %}" class="btn btn-primary btn-sm">Back to list</a>
+            {% if event.created_by == request.user %}
+                <a href="{% url 'user_side:edit_event' event.id %}" class="btn btn-info btn-sm">Edit Event</a>
+                
+            {% endif %}
+
+            {% if is_del %}
+                <button type="button" class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deleteEventModal">Delete Event</button>
+            {% endif %}
+
+            
             
             {% if is_join %}
                 <a href="{% url 'user_side:join_team_event' event.id %}" class="btn btn-success btn-sm">Join Event</a>
@@ -83,7 +29,7 @@
             {% endif %}
                 
             {% if event.created_by == request.user and not matches %}
-                <a href="#" class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#startTournamentModal">Start Tournament</a>
+                <a href="#" class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#startTournamentModal">Start Tournament</a>
             {% endif %}
 
             <!-- Modal -->
@@ -103,6 +49,25 @@
                         <div class="modal-footer">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">No</button>
                             <a href="#" id="confirmStartBtn" class="btn btn-danger">Yes, Start</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Delete Event Modal -->
+            <div class="modal fade" id="deleteEventModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="deleteModalLabel">Delete Event</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p>Are you sure you want to delete the event "<strong>{{ event.name }}</strong>"?</p>
+                            <p class="text-danger">This action cannot be undone.</p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <a href="{% url 'user_side:delete_event' event.id %}" class="btn btn-danger" id="confirmDeleteBtn">Yes, Delete</a>
                         </div>
                     </div>
                 </div>
@@ -133,12 +98,16 @@
         </div>
     </div>
     
-    <div class="row g-0">
-        <div class="col-md-12 text-center" >
-            <img src="https://pickleit.app/static/images/pickleit_newlogo.jpg" 
-                 class="img-fluid rounded-start" alt="Event Image" style="margin:10px auto;">
+    <div class="d-flex align-items-center gap-3 p-4 position-relative">
+        <div class="" >
+            {% if event.image %}
+                <img src="{{event.image.url}}" class="img-fluid rounded-start" alt="Event Image" style="margin:10px auto;">
+            {% else %}
+                <img src="https://pickleit.app/static/images/pickleit_newlogo.jpg" class="img-fluid rounded-start" alt="Event Image" style="margin:10px auto;">
+            {% endif %}
+            
         </div>
-        <div class="col-md-8">
+        <div class="">
             <div class="card-body">
                 <p><strong>Max Join Team:</strong> {{ event.max_number_team }} || 
                    <strong>Joined Team:</strong> {{ event.registered_team.count }}</p>
@@ -150,38 +119,86 @@
                    {{ event.created_by.first_name }} {{ event.created_by.last_name }}</p>
             </div>
         </div>
+        {% if score_update %}
+            <a href="{% url 'user_side:event_update_score' event.id %}" class="btn btn-primary btn-sm position-absolute update-score-btn">Update Score</a>
+        {% endif %}
+        
     </div>
 </div>
 
 <!-- Joined Teams -->
-<div class="card text-center">
-    <div class="card-header">
-        <h2 class="h3">Joined Teams</h2>
-    </div>
-    <div class="card-body">
-        <div class="row">
-            {% for team in event.registered_team.all %}
-                <div class="col-lg-2 col-md-6 col-sm-4">
-                    <div class="card shadow-sm">
-                        <div class="card-body text-center">
-                            <img src="https://pickleit.app/static/images/pickleit_newlogo.jpg" 
-                                 alt="{{ team.name }}" class="rounded-circle mb-2" width="80" height="80">
-                            <h5 class="card-title mb-0">{{ team.name }}</h5>
+{% if not r_group %}
+    <div class="card text-center">
+        <div class="card-header text-center d-flex justify-content-between align-items-center gap-2 flex-wrap">
+            <h2 class="h5">Joined Teams</h2>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                {% for team in event.registered_team.all %}
+                    <div class="col-lg-2 col-md-3 col-sm-4 col-6">
+                        <div class="card team-card h-100 border-0 shadow-sm text-center p-2">
+                            {% if team.team_image %}
+                                <img src="{{ team.team_image.url }}" alt="{{ team.name }}" class="rounded-circle mb-2" width="80" height="80">
+                            {% else %}
+                                <img src="https://pickleit.app/static/images/pickleit_newlogo.jpg" alt="{{ team.name }}" class="rounded-circle mb-2" width="80" height="80">
+                            {% endif %}
+                            <h6 class="card-title mb-0">{{ team.name }}</h6>
                         </div>
                     </div>
-                </div>
-            {% empty %}
-                <p>No teams have joined yet.</p>
-            {% endfor %}
+                {% empty %}
+                    <p>No teams have joined yet.</p>
+                {% endfor %}
+            </div>
         </div>
+        
     </div>
-    
+{% else %}
+    <div class="card text-center mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
+        <h2 class="h5 mb-0">Group Of Teams</h2>
+    </div>
+    <div class="card-body">
+
+        {% for court in r_group %}
+            <div class="card mb-4 shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Court {{ forloop.counter }}</h5>
+                </div>
+                <div class="card-body">
+                    {% if court.all_teams.all %}
+                        <div class="row g-3 justify-content-center">
+                            {% for team in court.all_teams.all %}
+                                <div class="col-lg-2 col-md-3 col-sm-4 col-6">
+                                    <div class="card team-card h-100 border-0 shadow-sm text-center p-2">
+                                        {% if team.team_image %}
+                                            <img src="{{ team.team_image.url }}" alt="{{ team.name }}" class="rounded-circle mb-2" width="80" height="80">
+                                        {% else %}
+                                            <img src="https://pickleit.app/static/images/pickleit_newlogo.jpg" alt="{{ team.name }}" class="rounded-circle mb-2" width="80" height="80">
+                                        {% endif %}
+                                        <h6 class="card-title mb-0">{{ team.name }}</h6>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted">No teams have joined yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
+
+    </div>
 </div>
+
+{% endif %}
+
+
+
 
 <!-- Matches -->
 <div class="card text-center">
-    <div class="card-header">
-        <h2 class="h3">Matches</h2>
+    <div class="card-header text-center d-flex justify-content-between align-items-center gap-2 flex-wrap">
+        <h2 class="h5">Matches</h2>
     </div>
     <div class="card-body">
         <div class="row">
@@ -237,49 +254,73 @@
 </div>
 
 
-<!-- Point Table -->
-<div class="card text-center">
-    
-        <div class="card-header">
-            <h2 class="h3 mb-0 text-center">Point Table</h2>
-        </div>
-        <div class="card-body">
-            <div class="row">
-                <div class="col-12">
-                    <table class="table">
-                        <thead class="table">
-                            <tr>
-                                <th>Rank</th>
-                                <th>Team</th>
-                                <th>Matches Played</th>
-                                <th>Wins</th>
-                                <th>Losses</th>
-                                <th>Draws</th>
-                                <th>Points</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for team, stats in sorted_teams %}
-                                <tr>
-                                    <td>{{ forloop.counter }}</td>
-                                    <td>{{ team.name }}</td>
-                                    <td>{{ stats.played }}</td>
-                                    <td>{{ stats.wins }}</td>
-                                    <td>{{ stats.losses }}</td>
-                                    <td>{{ stats.draws }}</td>
-                                    <td><strong>{{ stats.points }}</strong></td>
-                                </tr>
-                            {% empty %}
-                                <tr>
-                                    <td colspan="7" class="text-center text-danger">No matches played yet.</td>
-                                </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+
+
+<div class="container mt-5">
+    <h1 class="mb-4 text-center">League Point Tables</h1>
+    <ul class="nav nav-tabs" id="courtTabs" role="tablist">
+        {% for court_data in point_table %}
+            <li class="nav-item" role="presentation">
+                <button class="nav-link {% if forloop.first %}active{% endif %}" 
+                        id="court-{{ court_data.id }}-tab" 
+                        data-bs-toggle="tab" 
+                        data-bs-target="#court-{{ court_data.id }}" 
+                        type="button" 
+                        role="tab" 
+                        aria-controls="court-{{ court_data.id }}" 
+                        aria-selected="{% if forloop.first %}true{% else %}false{% endif %}">
+                    Court {{ court_data.court }}
+                </button>
+            </li>
+        {% endfor %}
+    </ul>
+    <div class="tab-content" id="courtTabContent">
+        {% for court_data in point_table %}
+            <div class="tab-pane fade {% if forloop.first %}show active{% endif %}" 
+                    id="court-{{ court_data.id }}" 
+                    role="tabpanel" 
+                    aria-labelledby="court-{{ court_data.id }}-tab">
+                <div class="card text-center mt-3">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-12">
+                                <table class="table table-striped">
+                                    <thead class="table-dark">
+                                        <tr>
+                                            <th>Rank</th>
+                                            <th>Team</th>
+                                            <th>Matches Played</th>
+                                            <th>Wins</th>
+                                            <th>Losses</th>
+                                            <th>Draws</th>
+                                            <th>Points</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for team in court_data.all_teams|dictsortreversed:"point" %}
+                                            <tr>
+                                                <td>{{ forloop.counter }}</td>
+                                                <td>{{ team.name }}</td>
+                                                <td>{{ team.completed_match }}</td>
+                                                <td>{{ team.win_match }}</td>
+                                                <td>{{ team.loss_match }}</td>
+                                                <td>{{ team.drow_match }}</td>
+                                                <td><strong>{{ team.point }}</strong></td>
+                                            </tr>
+                                        {% empty %}
+                                            <tr>
+                                                <td colspan="7" class="text-center text-danger">No matches played yet.</td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
-    
+        {% endfor %}
+    </div>
 </div>
 
 {% endblock %}
@@ -298,6 +339,23 @@
                 team.style.display = "none";
             }
         });
+    });
+</script>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        // Start Tournament Modal Logic
+        const maxTeams = {{ event.max_number_team }};
+        const registeredTeams = {{ event.registered_team.count }};
+
+        document.getElementById("maxTeams").innerText = maxTeams;
+        document.getElementById("registeredTeams").innerText = registeredTeams;
+
+        const warningMessage = document.getElementById("warningMessage");
+        if (registeredTeams < maxTeams) {
+            warningMessage.innerText = "Warning: Not all slots are filled.";
+        } else {
+            warningMessage.innerText = "";
+        }
     });
 </script>
 {% endblock %}

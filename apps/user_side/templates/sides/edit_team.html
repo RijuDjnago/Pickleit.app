@@ -26,82 +26,93 @@
         {% csrf_token %}
 
         <!-- Team Name -->
-        <div class="form-group">
+        <div class="form-group mb-3">
             <label for="team_name">Team Name</label>
             <input type="text" id="team_name" name="team_name" class="form-control" value="{{team.name}}" placeholder="Enter team name" required>
         </div>
 
         <!-- Location -->
-        <div class="form-group">
+        <div class="form-group mb-3">
             <label for="location">Location</label>
             <input type="text" id="location" name="location" class="form-control" value="{{team.location}}"  placeholder="Enter location">
         </div>
-
+        
         <!-- Team Person -->
-<!-- Team Person -->
-<div class="form-group">
-    <label for="team_person">Team Person Type</label>
-    <select id="team_person" name="team_person" class="form-control">
-        <option value="">Select Type</option>
-        <option value="Two Person Team" {% if team.team_person == "Two Person Team" %}selected{% endif %}>Two Person Team</option>
-        <option value="One Person Team" {% if team.team_person == "One Person Team" %}selected{% endif %}>One Person Team</option>
-    </select>
-</div>
+        <div class="form-group mb-3">
+            <label for="team_person">Team Person Type</label>
+            <select id="team_person" name="team_person" class="form-control">
+                <option value="">Select Type</option>
+                <option value="Two Person Team" {% if team.team_person == "Two Person Team" %}selected{% endif %}>Two Person Team</option>
+                <option value="One Person Team" {% if team.team_person == "One Person Team" %}selected{% endif %}>One Person Team</option>
+            </select>
+        </div>
 
-<!-- Team Category -->
-<div class="form-group">
-    <label for="team_type">Category</label>
-    <select id="team_type" name="team_type" class="form-control">
-        <option value="">Select Category</option>
-        <option value="Women" {% if team.team_type == "Women" %}selected{% endif %}>Women</option>
-        <option value="Men" {% if team.team_type == "Men" %}selected{% endif %}>Men</option>
-        <option value="Co-ed" {% if team.team_type == "Co-ed" %}selected{% endif %}>Co-ed</option>
-        <option value="Open-team" {% if team.team_type == "Open-team" %}selected{% endif %}>Open-team</option>
-    </select>
-</div>
-
+        <!-- Team Category -->
+        <div class="form-group mb-3">
+            <label for="team_type">Category</label>
+            <select id="team_type" name="team_type" class="form-control">
+                <option value="">Select Category</option>
+                <option value="Women" {% if team.team_type == "Women" %}selected{% endif %}>Women</option>
+                <option value="Men" {% if team.team_type == "Men" %}selected{% endif %}>Men</option>
+                <option value="Co-ed" {% if team.team_type == "Co-ed" %}selected{% endif %}>Co-ed</option>
+                <option value="Open-team" {% if team.team_type == "Open-team" %}selected{% endif %}>Open-team</option>
+            </select>
+        </div>
 
         <!-- Team Image -->
-        <div class="form-group">
+        <div class="form-group mb-3">
             <label for="team_image">Team Image</label>
-            <input type="file" id="team_image" name="team_image" class="form-control-file">
+            <input type="file" id="team_image" name="team_image" class="form-control form-control-file">
+            <div class="team-edit-image">
+                {% if team.team_image %}
+                    <img src="{{ team.team_image.url }}" alt="{{ team.name }}" height="80" width="150" class="mt-2">
+                {% else %}
+                    <img src="https://w7.pngwing.com/pngs/358/811/png-transparent-high-five-surgical-team-nursing-team-members-miscellaneous-blue-hand-thumbnail.png" alt="Default Team Image">
+                {% endif %}
+                
+            </div>
         </div>
-        <!-- Players Section -->
-<div class="mb-3">
-    <label for="team-players" class="form-label">Team Players</label>
-    
-    <!-- Search Players -->
-    <div class="mb-3">
-        <label for="player-search" class="form-label"></label>
-        <div class="input-group">
-            <input type="text" id="player-search" class="form-control" placeholder="Enter player name...">
-            <button type="button" id="player-search-btn" class="btn btn-primary">🔍 Search</button>
-        </div>
-        <ul id="player-search-results" class="list-group mt-2" style="max-height: 200px; overflow-y: auto;"></ul>
-    </div>
-    
-    <!-- List of Added Players -->
-    <ul id="team-players" class="list-group">
-        {% for player in players %}
-            <li class="list-group-item d-flex align-items-center justify-content-between" data-id="{{ player.id }}">
-                <img src="{% if player.image %}{{ player.image.url }} {% endif %}" class="team-image rounded-circle me-2" width="30" height="30">
-                <span>{{ player.player_full_name }}</span>
-                <button type="button" class="btn btn-danger btn-sm remove-player">❌</button>
-            </li>
-        {% endfor %}
-    </ul>
-</div>
 
-<!-- Hidden Select Field for Players -->
-<select id="selected-players" name="selected_players" class="form-control d-none" multiple>
-    {% for player in players %}
-        <option value="{{ player.id }}" selected>{{ player.player_full_name }}</option>
-    {% endfor %}
-</select>
-<div class="text-center mt-3">
+        <!-- Players Section -->
+        <div class="mb-3">
+            <label for="team-players" class="form-label">Team Players</label>
+            
+            <!-- Search Players -->
+            <div class="mb-3">
+                <div class="input-group">
+                    <input type="text" id="player-search" class="form-control" placeholder="Enter player name...">
+                    <button type="button" id="player-search-btn" class="btn btn-primary">🔍 Search</button>
+                </div>
+                <ul id="player-search-results" class="list-group mt-2" style="max-height: 200px; overflow-y: auto;"></ul>
+            </div>
+            
+            <!-- List of Added Players -->
+            <ul id="team-players" class="list-group">
+                {% for player in players %}
+                    <li class="list-group-item d-flex align-items-center justify-content-between" data-id="{{ player.id }}">
+                            {% if player.player.image %}
+                                <img src="{{ player.player.image.url }}" class="team-image rounded-circle me-2" width="30" height="30">
+                            {% else %}
+                                <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQmRLRMXynnc7D6-xfdpeaoEUeon2FaU0XtPg&s"  class="team-image rounded-circle me-2" width="30" height="30">
+                            {% endif %}
+                        <img src="{% if player.image %}{{ player.image.url }} {% endif %}" >
+                        <span>{{ player.player_full_name }}</span>
+                        <button type="button" class="btn btn-danger btn-sm remove-player">❌</button>
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <!-- Hidden Select Field for Players -->
+        <select id="selected-players" name="selected_players" class="form-control d-none" multiple>
+            {% for player in players %}
+                <option value="{{ player.id }}" selected>{{ player.player_full_name }}</option>
+            {% endfor %}
+        </select>
+        <div class="text-center mt-3">
 
         <button type="submit" class="btn btn-primary mt-3">Edit Team</button>
-</div>
+        </div>
     </form>
 </div>
 {% endblock %}

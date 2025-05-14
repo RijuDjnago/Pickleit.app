@@ -7,68 +7,81 @@
     <a href="{% url 'user_side:edit_team' team_details.id %}" class="btn btn-primary">Edit Team</a>
     {% endif %}
 </div>
-<h1 class="h3 mb-3">{{ team_details.name }} Details</h1>
+<h1 class="h6 mb-3">{{ team_details.name }} Details</h1>
 
 <div class="row">
     <!-- Left Side: Team Details and Players -->
     <div class="col-md-6">
-        <div class="card">
-            <img src="{{ team_details.logo.url }}" class="card-img-top" alt="{{ team_details.name }}">
-            <div class="card-body">
+        <div class="team-details-block">
+            <div class="td-top">
+                <div class="team-logo">
+                    {% if team_details.team_image %}
+                        <img src="{{ team_details.team_image.url }}" alt="{{ team_details.name }}">
+                    {% else %}
+                        <img src="https://w7.pngwing.com/pngs/358/811/png-transparent-high-five-surgical-team-nursing-team-members-miscellaneous-blue-hand-thumbnail.png" alt="Default Team Image">
+                    {% endif %}
+                    
+                </div>
                 <h5 class="card-title">{{ team_details.name }}</h5>
-                <p class="card-text">{{ team_details.description }}</p>
+                <p class="card-text">{{ team_details.team_person }} || {{ team_details.team_type }}</p>
+                
+            </div>
+            <div class="td-btm">
+                <h4 class="h6 mt-3">Players</h4>
+                <ul class="list-group">
+                    {% for player in players %}
+                    <li class="list-group-item d-flex align-items-center">
+                        <div class="player-img">
+                            {% if player.player.image %}
+                                <img src="{{ player.player.image.url }}" alt="{{ player.player.first_name }} ">
+                            {% else %}
+                                <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQmRLRMXynnc7D6-xfdpeaoEUeon2FaU0XtPg&s"  alt="{{ player.player.first_name }} ">
+                            {% endif %}
+                        </div>
+                        {{ player.player.first_name }} {{player.player.last_name}}
+                        
+                    </li>
+                    {% empty %}
+                    <li class="list-group-item text-muted">No players available</li>
+                    {% endfor %}
+                </ul>
             </div>
         </div>
-        
-        <!-- Player List -->
-        <h4 class="mt-3">Players</h4>
-        <ul class="list-group">
-            {% for player in players %}
-            <li class="list-group-item d-flex align-items-center">
-                <img src="{{ player.image.url }}" alt="{{ player.player.first_name }} " class="rounded-circle me-2" style="width: 40px; height: 40px;">
-                {{ player.player.first_name }} {{player.player.last_name}}
-                <button class="btn btn-danger btn-sm ms-auto remove-player" data-player-id="{{ player.id }}">×</button>
-            </li>
-            {% empty %}
-            <li class="list-group-item text-muted">No players available</li>
-            {% endfor %}
-        </ul>
+     
     </div>
 
     <!-- Right Side: Stats -->
-    <div class="col-md-6">
-        <div class="row mb-3">
-            <div class="col-md-4">
-                <div class="card text-center">
-                    <div class="card-body">
-                        <h5 class="card-title">Played Matches</h5>
-                        <h1>{{ total_matches }}</h1>
-                    </div>
-                </div>
+    <div class="col-md-6 d-flex align-items-center justify-content-between">        
+        {% if total_matches != 0 %}
+        <div class="card w-100 m-0">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Stats</h5>
+                <!-- <button class="btn btn-primary btn-sm" onclick="window.location.href='{% url 'user_side:match_history_user' %}'">Go to match history</button> -->
+
             </div>
-            <div class="col-md-4">
-                <div class="card text-center">
-                    <div class="card-body">
-                        <h5 class="card-title">Wins</h5>
-                        <h1 class="text-success">{{ wins }}</h1>
-                    </div>
-                </div>
+            <div class="chart chart-sm p-2">
+                <canvas id="chartjs-doughnut"></canvas>
             </div>
-            <div class="col-md-4">
-                <div class="card text-center">
-                    <div class="card-body">
-                        <h5 class="card-title">Losses</h5>
-                        <h1 class="text-danger">{{ losses }}</h1>
-                    </div>
-                </div>
+            <div class="chart-btns p-2 w-100 d-flex align-items-center justify-content-center gap-3">
+                <a href="javascript:void(0);" class="btn btn-success">Played Matches ({{ total_matches }})</a>
+                <a href="javascript:void(0);" class="btn btn-danger">Wins ({{ wins }})</a>
+                <a href="javascript:void(0);" class="btn btn-info">Losses ({{ losses }})</a>
             </div>
+        </div> 
+        {% else %}
+        <div class="container text-center mt-4">
+            <!-- <h5 class="card-title mb-0">Stats</h5> -->
+            <p style="color: red;">No stats</p>
         </div>
+        
+        {% endif %}
+        
     </div>
 </div>
 
 <!-- Match History Section (Only Show If Matches Exist) -->
 {% if match_history %}
-<h3 class="mt-4">Match History</h3>
+<h6 class="mt-4">Match History</h6>
 <div class="row">
     {% for match in match_history %}
     <div class="col-lg-4 col-md-6 col-sm-12">
@@ -141,4 +154,50 @@
         });
     });
 </script>
+
+<script>
+    function initMap() {
+        var userLocation = { lat: 22.5354, lng: 88.3473 }; // Set default location
+
+        var map = new google.maps.Map(document.getElementById("map"), {
+            center: userLocation,
+            zoom: 12,
+        });
+
+        var marker = new google.maps.Marker({
+            position: userLocation,
+            map: map,
+            title: "User Location",
+        });
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        // Doughnut chart
+        new Chart(document.getElementById("chartjs-doughnut"), {
+            type: "doughnut",
+            data: {
+                labels: ["Win", "Lose"],
+                datasets: [{
+                    data: [{{ wins }}, {{ losses }}],
+                    backgroundColor: [
+                        window.theme.success,
+                        window.theme.danger
+                    ],
+                    borderColor: "transparent"
+                }]
+            },
+            options: {
+                maintainAspectRatio: false,
+                cutoutPercentage: 65,
+                legend: {
+                    display: false
+                }
+            }
+        });
+    });
+</script>
+
+<!-- Google Maps API (Make sure the key is valid) -->
+<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAQ_OGAb4yuL8g55IMufP3Dwd4yjrWxrdI&callback=initMap"></script>
+
 {% endblock %}

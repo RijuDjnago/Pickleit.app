@@ -31,7 +31,7 @@
                 </ul>
             </li>
 
-            <li class="sidebar-item {% if request.resolver_match.url_name == 'event_user' or request.resolver_match.url_name == 'event_view' or request.resolver_match.url_name == 'join_team_event' or request.resolver_match.url_name == 'edit_event' or request.resolver_match.url_name == 'start_tournament' %}active{% endif %}">
+            <li class="sidebar-item {% if request.resolver_match.url_name == 'event_user' or request.resolver_match.url_name == 'event_view' or request.resolver_match.url_name == 'join_team_event' or request.resolver_match.url_name == 'edit_event' or request.resolver_match.url_name == 'start_tournament' or request.resolver_match.url_name == 'add_event' or request.resolver_match.url_name == 'event_update_score' %}active{% endif %}">
                 <a class="sidebar-link" href="{% url 'user_side:event_user' %}">
                     <i class="align-middle" data-feather="calendar"></i> 
                     <span class="align-middle">Event</span>
@@ -44,18 +44,21 @@
                     <span class="align-middle">Match History</span>
                 </a>
             </li>
-            <li class="sidebar-item {% if request.resolver_match.url_name == 'update_match_score' %}active{% endif %}">
-                <a class="sidebar-link" href="{% url 'user_side:update_match_score' %}">
-                    <i class="align-middle" data-feather="edit"></i> 
-                    <span class="align-middle">Update Score</span>
-                </a>
-            </li>
+            
             <li class="sidebar-item {% if request.resolver_match.url_name == 'user_wallet' %}active{% endif %}">
                 <a class="sidebar-link" href="{% url 'user_side:user_wallet' %}">
                     <i class="align-middle" data-feather="credit-card"></i> 
                     <span class="align-middle">Wallet</span>
                 </a>
             </li>
+
+           <li class="sidebar-item {% if request.resolver_match.url_name in 'socail_feed_list,add_post,like_post,add_comment,view_post' %}active{% endif %}">
+                <a class="sidebar-link" href="{% url 'user_side:socail_feed_list' %}">
+                    <i class="bi bi-chat-dots align-middle"></i>
+                    <span class="align-middle">Social Feed</span>
+                </a>
+            </li>
+
 
             <li class="sidebar-item {% if request.resolver_match.url_name == 'my_ad_list' or request.resolver_match.url_name == 'add_advertisement' %}active{% endif %}">
                 <a class="sidebar-link {% if request.resolver_match.url_name in 'my_ad_list' or request.resolver_match.url_name == 'add_advertisement' %}{% else %}collapsed{% endif %}" data-bs-toggle="collapse" href="#adsDropdown" role="button" aria-expanded="{% if request.resolver_match.url_name in 'my_ad_list' or request.resolver_match.url_name == 'add_advertisement' %}true {% else %}false {% endif %}" aria-controls="teamsDropdown">
@@ -100,6 +103,18 @@
                         <a class="sidebar-link" href="{% url 'user_side:my_court_list' %}">My Courts</a>
                     </li>
                 </ul>
+            </li>
+            <li class="sidebar-item">
+                <a class="sidebar-link" href="{% url 'user_side:open_play_form' %}">
+                     <i class="bi bi-controller"></i>
+                    <span class="align-middle">Open Play</span>
+                </a>
+            </li>
+            <li class="sidebar-item {% if request.resolver_match.url_name == 'subcription_plan' or request.resolver_match.url_name == 'payment_success' or request.resolver_match.url_name == 'create_checkout_session' or request.resolver_match.url_name == 'payment_cancel' %}active{% endif %}">
+                <a class="sidebar-link" href="{% url 'user_side:subcription_plan' %}">
+                     <i class="bi-check-circle" data-feather="bi-check-circle"></i>
+                    <span class="align-middle">Susbcription</span>
+                </a>
             </li>
         </ul>
     </div>

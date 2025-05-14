@@ -245,9 +245,10 @@ def payment_for_advertisement(request,charge_for,my_data,checkout_session_id):
                     created_by_id=request_data["created_by_id"],
                     description=request_data["description"],
                     script_text=request_data["script_text"],
-                    start_date=request_data["start_date"],
-                    end_date=request_data["end_date"],
-                    approved_by_admin=True)
+                    start_date=None,
+                    end_date=None,
+                    approved_by_admin=False,
+                    admin_approve_status="Pending")
             save_payment.payment_for_ad = ad
             save_payment.save()
             context["charge_for"] = save_payment.payment_for
@@ -2280,3 +2281,13 @@ def view_advertiser_facility(request):
     return Response(data)
 
 ## #update #Riju
+
+# @api_view(('POST',))
+# def image_validator(request):
+#     try:        
+#         image = request.GET.get('image')
+#         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
+#     except Exception as e:
+#         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
+#     return Response(data)
+
