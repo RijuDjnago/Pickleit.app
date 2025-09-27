@@ -1,4 +1,5 @@
 {% extends 'base/base_user.html' %}
+{% load custom_filters %}
 {% block content %}
 <div class="container mt-4">
     <h1 class="h3 mb-3 text-center">📢 Advertisement Listings</h1>
@@ -30,7 +31,7 @@
                         <h5 class="mb-1">📌 {{ advertisement.name }}</h5>
                         <p class="text-muted small mb-1">🏢 {{ advertisement.company_name }}</p>
                         <p class="text-muted small mb-1">🌐 <a href="{{ advertisement.company_website }}" target="_blank">{{ advertisement.company_website }}</a></p>
-                        <p class="text-muted small">📅 Duration: {{ advertisement.start_date|date:"Y-m-d" }} to {{ advertisement.end_date|date:"Y-m-d" }}</p>
+                        <p class="text-muted small">📅 Duration: {{ advertisement.start_date|date:"j" | ordinal_day }} {{ advertisement.start_date|date:"M, Y" }}  to {{ advertisement.end_date|date:"j" | ordinal_day }} {{ advertisement.end_date|date:"M, Y" }}</p>
                     </div>
                 </div>
             </div>

@@ -85,9 +85,19 @@ urlpatterns = [
 
 
     #subcription
-    #subcription model
+    # subcription model
+    #subcription
     path('validate-iap/', views2.validate_iap, name='validate_iap'),
     path('subscription-plans/', views2.get_subscription_plans, name='get_subscription_plans'),
+    path('next-plans/', views2.get_next_plans, name='get_next_plans'),
+    path('get_user_subcription_permition/', views2.get_user_subcription_permition, name="get_user_subcription_permition"),
+
+    ###subcription using stripe
+    path('get_user_subscription_details/', views2.get_subscription_payment_link, name="get_subscription_payment_link"),
+    path('plan/subscription/payment/<str:encoded_data>/<str:session_id>/', views2.get_subscription_payment_link_verify, name="get_subscription_payment_link_verify"),
+    path('plan/subscription/cancel/', views2.get_subscription_payment_cancel, name="get_subscription_payment_cancel"),
+
+
 
     # twillo 
     path("send-otp/",  views3.SendOTPView.as_view(), name="send-otp"),

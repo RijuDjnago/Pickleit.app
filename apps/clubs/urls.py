@@ -6,6 +6,7 @@ urlpatterns = [
     path("add-club/", add_club, name="add_club"),
     path("my-clubs/", my_club_list, name="my_clubs"),
     path("view-club/<int:club_id>/", view_club, name="view_club"),
+    path("edit-club/", edit_club, name="edit_club"),
     path("add-rating/", add_rating, name="add_rating"),
 
     path('add_package_for_myclub/', add_package_for_myclub, name="add_package_for_myclub"),
@@ -29,4 +30,13 @@ urlpatterns = [
     
     ###search club location and keyword wise
     path("search-clubs/", ClubSearchAPIView.as_view(), name="search-clubs"),
+
+
+    #dashboard api
+    path("weekly_booking_details/", weekly_booking_details, name="weekly_booking_details"),
+    path("weekly_join_details/", weekly_join_details, name="weekly_join_details"),
+    path("club_transection_list/", club_transection_list, name="club_transection_list"),
+
+    #scanning qr code
+    path("club_qr_code_scanning/", club_qr_code_scanning, name="club_qr_code_scanning"),
 ]

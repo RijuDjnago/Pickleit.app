@@ -18,10 +18,12 @@ urlpatterns = [
     
     path('ecf5996e26df82090bded2677435fd055b406d213919763606e1e34698f4f74e/', views.store_product_add, name="store_product_add"),
     path('094f7cc88d10be9061913e637d58a6c6cf81d125c101ec88a2646aa03b8017ea/', views.store_product_delete, name="store_product_delete"),
-    path('615256f796aa2143421c3764c25acc20d478868e891f64a1af2fa01e8659fb8f/', views.store_product_edit, name="store_product_edit"),
+    # path('615256f796aa2143421c3764c25acc20d478868e891f64a1af2fa01e8659fb8f/', views.store_product_edit, name="store_product_edit"),
     path('d3c3b488f32fd3c34fee5613c03da4fb5ec02daae27efb478a8f6859649cdad9/', views.store_product_list, name="store_product_list"),
+    path('36a06f3f9625334f0b30c6838618b4afb2b2c805eaf735c91718e2aa026520c6/', views.get_product_details, name='get_product_details'),
     path('82708a7905621c6069cc592debc1a1eebce89f372d4a73daf79617408870bfe7/', views.my_store_product_list, name="my_store_product_list"),
     path('fbce2ffcbd4f246eb04fc0c9c4f9a6e15e206854cc05bfc6b812c354bf6a0f83/', views.store_product_view, name="store_product_view"),
+    path('cffca50f8c0de284420e0521bff44ccef3035b58537bec3c4bcac3e235acf0e7/', views.product_color_size_varieties, name='product_color_size_varieties'),
     path('5457cf58bfb70977bca564f3b9a6fe5efbe71d713d73f57f10594518ff3fbfba/', views.category_wise_product_filter, name="category_wise_product_filter"),
     path('ff4001a548eff92079e17f6a6a1a10daa2f552acb1242eb9f0200313df8cdc3f/', views.search_wise_product_filter, name="search_wise_product_filter"),
     
@@ -38,6 +40,8 @@ urlpatterns = [
     path('ad6afd93709535a40ff40f1690c505695085de1b9dbfc153caccddb31eabdb18/', views.cart_delete, name="cart_delete"),
     path('ab2fce6098b4f5e2e1609e50be8d788086de4f31752154595af4921518384cfa/', views.MyOrderActive.as_view(), name="my_order_active"),
     path('0d092a521176631ad7f54dfe07cd18a9a9d2f3c9ca3a72387bf5c419f456c094/', views.MyOrderCompleted.as_view(), name="my_order_completed"),
+      path('088b785358cf9f2225a70e55819199728c682a64322291bbd89749c7b74d32b8/', views.MyOrderReceived.as_view(), name='my_order_received'),
+      path('8487c21651947f73c56a37dfe51361ad19510bc8aef626fe53af22b6d1038c17/', views.update_delivery_status, name="update_delivery_status"),
     # Store
     path('be80c96ee1ee2b5740b16ab2bd83df9807ba36563996ebaec4f391e291b6beb4/', views.check_store_product_liked_or_not, name="check_store_product_liked_or_not"),
     path('44fa83b26ca103757133c3c51e16837d34a072592ab65ad249b0dfc39ad2ccdb/', views.wishlisted_products, name="wishlisted_products"),

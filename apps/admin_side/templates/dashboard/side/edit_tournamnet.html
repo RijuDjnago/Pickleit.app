@@ -2,9 +2,11 @@
 {% load i18n %}
 {% load static %}
 
-{% block extra_style %}
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-beta.1/css/select2.min.css">
-{% endblock extra_style %}
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<!-- Optional: Bootstrap 5 theme for Select2 -->
+<link href="https://cdn.jsdelivr.net/npm/@ttskch/select2-bootstrap4-theme@1.5.2/dist/select2-bootstrap4.min.css" rel="stylesheet" />
+{% endblock extra_css %}
 
 {% block page_title %}
     Tournament
@@ -97,14 +99,14 @@
                 </div>
                 <!-- Maximum Join Team -->
                 <div class="mb-3">
-                    <label for="maxJoinTeam" class="form-label">Maximum Join Team</label>
+                    <label for="maxJoinTeam" class="form-label">Maximum No. of Teams</label>
                     <input type="number" id="maxJoinTeam" name="max_join_team" class="form-control" value="{{ league_details.max_number_team }}" required>
                 </div>
 
                 <!-- Join Team -->
                 <div class="mb-3">
-                    <label for="joinTeam" class="form-label">Join Team</label>
-                    <select id="joinTeam" name="join_team" class="form-control select2" multiple>
+                    <label for="joinTeam" class="form-label">Joined Teams</label>
+                    <select id="joinTeam" name="join_team" class="select2" multiple>
                         {% for team in teams %}
                             <option value="{{ team.id }}" {% if team in league_details.registered_team.all %}selected{% endif %}>{{ team.name }}</option>
                         {% endfor %}
@@ -149,7 +151,7 @@
                 
                 <div class="form-group mt-3">
                     <label for="organizer">Select Organizer</label>
-                    <select id="organizer" name="organizer" class="form-control select2" multiple>
+                    <select id="organizer" name="organizer" class="select2" multiple>
                         <option value="">Search and Select Organizer</option>
                         {% for user in users %}
                         <option value="{{ user.id }}" {% if user in league_details.add_organizer.all %}selected{% endif %}>{{ user.first_name }} {{ user.last_name }} ({{ user.email }})</option>
@@ -235,7 +237,10 @@
 </div>
 
 <!-- Scripts -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-beta.1/js/select2.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+<!-- Select2 (latest stable release) -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script>
         document.addEventListener("DOMContentLoaded", function () {
             const addFeeButton = document.getElementById("add-fee");
@@ -264,14 +269,19 @@
             });
 
             // Initialize Select2
-            if (typeof jQuery !== "undefined") {
-                $(".select2").select2({
-                    placeholder: "Select teams",
-                    allowClear: true,
-                });
-            }
+            
         });
-    </script>
+</script>
+<script>
+    $(document).ready(function () {
+        $('.select2').select2({
+            theme: 'bootstrap4',  // works with the theme linked above
+            width: '100%',
+            placeholder: "Select an option",
+            allowClear: true
+        });
+    });
+</script>
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAfBo6-cZlOpKGrD1ZYwISIGjYvhH_wPmk&libraries=places"></script>
     <script>
         function initAutocomplete() {
@@ -295,14 +305,14 @@
         window.onload = initAutocomplete;
     </script>
     
-    <script>
+    {% comment %} <script>
         $(document).ready(function() {
             $('#organizers').select2({
                 placeholder: "Search and Select Organizers",
                 allowClear: true
             });
         });
-    </script>
+    </script> {% endcomment %}
 
     <script>
         document.getElementById("add_policy").addEventListener("click", function() {

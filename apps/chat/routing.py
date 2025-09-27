@@ -10,4 +10,9 @@ websocket_urlpatterns = [
     #updated
     re_path(r"ws/chat_history/$", consumers.ChatHistory.as_asgi()),
     re_path(r"ws/chat_room/(?P<room_name>\w+)/$", consumers.ChatUser.as_asgi()),
+
+
+    #ads
+    # re_path(r'ws/ads/$', consumers.AdvertisementConsumer.as_asgi()),
+
 ]

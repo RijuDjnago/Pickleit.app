@@ -326,6 +326,7 @@ class WalletTransaction(models.Model):
         ('AddMoney', 'AddMoney'),
         ('TeamRegistration', 'TeamRegistration'),
         ('Advertisement', 'Advertisement'),
+        ('Plan', 'Plan'),
         ('Store', 'Store'),
         ('BookClub', 'BookClub'),
         ('JoinClub', 'JoinClub'),

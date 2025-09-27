@@ -17,34 +17,23 @@ class SocialFeedPagination(PageNumberPagination):
     page_size_query_param = 'per_page'  # Allow clients to set page size via query param
     max_page_size = 100  # Maximum items per page
 
-@api_view(['GET'])
-def my_social_feed(request):
-    res = {
-        "count": 0,
-        "next": None,
-        "previous": None,
-        "results":[]
-        }
-    data = request.GET
-    user_uuid = data.get("user_uuid")
-    check_user = User.objects.filter(uuid=user_uuid)
-    if check_user.exists():
-        get_user = check_user.first()
-        feeds = socialFeed.objects.filter(user=get_user).order_by('-created_at')
+    def get_paginated_response(self, data):
+        # Get next and previous links
+        next_link = self.get_next_link()
+        previous_link = self.get_previous_link()
         
-        # Shuffle the data
-        serializer = MysocialFeedSerializer(feeds, many=True)
-        data = serializer.data
-        random.shuffle(data)
-
-        # Apply pagination
-        paginator = SocialFeedPagination()
-        paginated_data = paginator.paginate_queryset(data, request)
-
-        return paginator.get_paginated_response(paginated_data)
-    else:
-        return Response(res, status=status.HTTP_400_BAD_REQUEST)
-
+        # Force HTTPS in links if they exist
+        if next_link:
+            next_link = next_link.replace('http://', 'https://')
+        if previous_link:
+            previous_link = previous_link.replace('http://', 'https://')
+        
+        return Response({
+            'count': self.page.paginator.count,
+            'next': next_link,
+            'previous': previous_link,
+            'results': data
+        })
 
 @api_view(['GET'])
 def social_feed_list(request):
@@ -52,10 +41,89 @@ def social_feed_list(request):
     feeds = socialFeed.objects.filter(block=False).order_by('-created_at')
     serializer = SocialFeedSerializer(feeds, many=True, context={'user_uuid': user_uuid})
     data = serializer.data
-    random.shuffle(data)
     paginator = SocialFeedPagination()
     paginated_data = paginator.paginate_queryset(data, request)
     return paginator.get_paginated_response(paginated_data)
+
+@api_view(['POST'])
+def edit_social_feed(request):
+    try:
+        data = request.POST
+        user= get_object_or_404(User, uuid=data.get("user_uuid"))
+        feed = get_object_or_404(socialFeed, id=data.get("feed_id"))
+        if feed.user != user:
+            return Response(
+                {
+                "msg":"Unauthorized access", 
+                "status": status.HTTP_400_BAD_REQUEST
+                }
+                )
+        feed.text = data.get("text", feed.text)
+        removing_files = data.getlist("removing_files", [])
+        if removing_files:
+            for file_id in removing_files:
+                try:
+                    file_to_remove = FeedFile.objects.get(id=file_id, post=feed)
+                    file_to_remove.delete()
+                except FeedFile.DoesNotExist:
+                    return Response(
+                        {
+                        "msg":"File not found", 
+                        "status": status.HTTP_404_NOT_FOUND
+                        }
+                        )
+        post_files = request.FILES.getlist("post_files")
+        if post_files:
+            for post_file in post_files:
+                save_file = FeedFile(post=feed, file=post_file)
+                save_file.save()
+        feed.save()
+
+        return Response(
+                        {
+                        "msg":"Successfully update your feed!", 
+                        "status": status.HTTP_201_CREATED
+                        }
+                        )
+    except Exception as e:
+        return Response(
+                        {
+                        "msg":str(e), 
+                        "status": status.HTTP_400_BAD_REQUEST
+                        })
+
+
+
+
+@api_view(['GET'])
+def my_social_feed(request):
+    user_uuid = request.GET.get("user_uuid", None)
+    user = get_object_or_404(User, uuid=user_uuid)
+    feeds = socialFeed.objects.filter(user=user).order_by('-created_at')
+    serializer = SocialFeedSerializer(feeds, many=True, context={'user_uuid': user_uuid})
+    data = serializer.data
+    # random.shuffle(data)
+    paginator = SocialFeedPagination()
+    paginated_data = paginator.paginate_queryset(data, request)
+    return paginator.get_paginated_response(paginated_data)
+   
+
+@api_view(['POST'])
+def delete_social_feed(request):
+    try:
+        data = request.POST
+        user_uuid = data.get("user_uuid")
+        feed_id = data.get("feed_id")
+        user = get_object_or_404(User, uuid=user_uuid)
+        feed = socialFeed.objects.get(id=feed_id)
+        if feed.user != user:
+            return Response({"error": "You are not authorized to edit this feed."}, status=status.HTTP_403_FORBIDDEN)
+        feed.delete()
+        return Response({"success": "Feed deleted successfully."}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 
 @api_view(['GET'])
 def social_feed_detail(request, pk):
@@ -87,7 +155,11 @@ def post_social_feed(request):
         for post_file in post_files:
             save_file = FeedFile(post=feed, file=post_file)
             save_file.save()
-
+        from apps.chat.views import notify_all_users
+        titel = "New Post"
+        message = "New post added by " + str(get_user.first_name) + " " + str(get_user.last_name)
+        if titel and message:
+            notify_all_users(titel, message)
         return Response(
                         {
                         "msg":"Successfully posted your feed!", 
@@ -100,6 +172,7 @@ def post_social_feed(request):
                         "msg":str(e), 
                         "status": status.HTTP_400_BAD_REQUEST
                         })
+
 
 @api_view(['POST'])
 def post_comment(request):

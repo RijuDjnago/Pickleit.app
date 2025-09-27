@@ -61,9 +61,7 @@
             </div>
         </div>
     {% empty %}
-        <div class="col-12 text-center">
-            <p class="text-muted">No courts found 😔</p>
-        </div>
+        {% include 'base/not_found.html' %}
     {% endfor %}
 </div>
 {% if courts.has_other_pages %}

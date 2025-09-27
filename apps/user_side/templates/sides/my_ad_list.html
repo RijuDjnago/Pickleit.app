@@ -1,16 +1,32 @@
 {% extends 'base/base_user.html' %}
 {% block content %}
 <div class="container mt-4">
-    <h1 class="h3 mb-3 text-center">📢 My Advertisement Listings</h1>
-    <div class="text-end mb-3">
-        <a href="{% url 'user_side:add_advertisement' %}" class="btn btn-primary">➕ Add Advertisement</a>
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap">
+        <!-- Left: Heading -->
+        <h1 class="h4 mb-0">My Advertisement</h1>
+
+        <!-- Right: Search + Add Button -->
+        <div class="d-flex align-items-center mt-2 mt-md-0">
+            <form method="GET" action="" class="d-flex align-items-center me-2">
+                <input type="text" name="q" class="form-control me-2 rounded" placeholder="🔍 Search advertisements..." value="{{ query }}">
+            </form>
+
+            {% if error %}
+                <a href="#" class="btn btn-info" id="subscribe-btn"
+                data-bs-toggle="popover"
+                data-bs-trigger="focus"
+                title="Subscription Required"
+                data-bs-html="true"
+                data-bs-content='You need to <a href="{% url "user_side:subcription_plan" %}">subscribe</a> to a plan to create advertisements.'>
+                <i class="fa-solid fa-plus"></i> Add Advertisement
+                </a>
+            {% else %}
+                <a href="{% url 'user_side:add_advertisement' %}" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Add Advertisement</a>
+            {% endif %}
+        </div>
     </div>
-    
-    <!-- Search Form -->
-    <form method="GET" action="" class="mb-4 d-flex justify-content-center">
-        <input type="text" name="q" class="form-control w-50 me-2" placeholder="🔍 Search advertisements..." value="{{query }}" onkeyup="filterClubs()">
-        
-    </form>
+
+
     
     <!-- Advertisement Cards -->
     <div class="row">
@@ -39,9 +55,7 @@
                 </div>
             </div>
         {% empty %}
-            <div class="col-12 text-center">
-                <p class="text-muted">😔 No advertisements found</p>
-            </div>
+            {% include 'base/not_found.html' %}
         {% endfor %}
     </div>
     
@@ -73,6 +87,12 @@
             window.location.href = `?q=${searchQuery}`;
         }
     }
-
+    document.addEventListener("DOMContentLoaded", function () {
+        const popoverTrigger = document.getElementById('subscribe-btn');
+        if (popoverTrigger) {
+            // Initialize the popover with Bootstrap
+            new bootstrap.Popover(popoverTrigger);
+        }
+    });
 </script>
 {% endblock %}

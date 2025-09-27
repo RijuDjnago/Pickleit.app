@@ -11,70 +11,104 @@
 {% block content %}
 
     <div class="page-breadcrumb">
-        <div class="row">
-            <div class="col-12 d-flex no-block align-items-center">
-                <h4 class="page-title">Advertisements</h4>
-                <div class="ml-auto text-right">
-                    <nav aria-label="breadcrumb">
-                        <form method="GET">
-                            <select name="filter_type" onchange="this.form.submit()">
-                                <option value="">All</option>
-                                <option value="pending_requests" {% if request.GET.filter_type == "pending_requests" %}selected{% endif %}>Pending</option>
-                                <option value="rejected_requests" {% if request.GET.filter_type == "rejected_requests" %}selected{% endif %}>Rejected</option>
-                                <option value="approved_requests" {% if request.GET.filter_type == "approved_requests" %}selected{% endif %}>Approved</option>
-                            </select>
-                        </form>                        
-                    </nav>
+        <form method="GET" action="">
+            <div class="row d-flex align-items-center justify-content-between">
+                <div class="d-flex align-items-center m-2">
+                    <h4 class="page-title">Advertisement List</h4>
+                    <select class="form-control ml-3" name="page_length" style="width: 120px;" onchange="this.form.submit()">
+                        <option value="20" {% if page_length == "20" %}selected{% endif %}>20</option>
+                        <option value="50" {% if page_length == "50" %}selected{% endif %}>50</option>
+                        <option value="100" {% if page_length == "100" %}selected{% endif %}>100</option>
+                        <option value="200" {% if page_length == "200" %}selected{% endif %}>200</option>
+                    </select>
+                </div>
+                <div class="d-flex align-items-center">
+                    <select name="filter_type" class="form-control">
+                        
+                        <option value="all" {% if filter_type == "all" %}selected{% endif %}>All</option>
+                        <option value="pending_requests" {% if filter_type == "pending_requests" or not filter_type  %}selected{% endif %}>Pending</option>
+                        <option value="rejected_requests" {% if filter_type == "rejected_requests" %}selected{% endif %}>Rejected</option>
+                        <option value="approved_requests" {% if filter_type == "approved_requests" %}selected{% endif %}>Approved</option>
+                    </select>
+                    <input type="text" name="search_text" class="form-control mr-2" placeholder="Search Ad..." 
+                    value="{% if search_text %}{{ search_text }}{% endif %}" style="width: 200px;">
+                
+                    <button type="submit" class="btn btn-secondary"><i class="fas fa-search"></i></button>
+                        
                 </div>
             </div>
-        </div>
+        </form>
     </div>
     
     <div class="container-fluid">
-        <div class="card">           
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table id="zero_config" class="table table-striped table-bordered">
-                        <thead>
-                        <tr>
-                            <th class="h5 font-weight-bold text-center">Image</th>
-                            <th class="h5 font-weight-bold text-center">Name</th>
-                            <th class="h5 font-weight-bold text-center">url</th>
-                            <th class="h5 font-weight-bold text-center">Start date</th>
-                            <th class="h5 font-weight-bold text-center">End date</th>
-                            <th class="h5 font-weight-bold text-center">Approved by admin</th>
-                            <th class="h5 font-weight-bold text-center">Created at</th>
-                            <th class="h5 font-weight-bold text-center">Created by</th>
-                            <th class="h5 font-weight-bold text-center">Action</th>
-                                                        
-                        </tr>
-                        </thead>
-                        <tbody>
-                            {% for ad in advertisements %}
-                        <tr>
-                            <td><img src="/media/{{ ad.image }}" class="img-fluid" width="200" alt="Advertisement Image"></td>
-                            <td >{{ad.name}}</td>
-                            <td><a href="{{ad.url}}">{{ad.url}}</a></td>
-                            <td>{{ad.start_date}}</td>
-                            <td>{{ad.end_date}}</td>
-                            <td>{{ad.approved_by_admin}}</td>
-                            <td>{{ad.created_at}}</td>
-                            <td>{{ad.created_by__username}}</td>
-                            <td>
-                                <div class="btn-group" role="group" aria-label="Advertisement Actions" style="margin-bottom: 0;">
-                                <a href="/admin/advertisement_view_/{{ad.id}}/" class="btn btn-primary" ><i class="fas fa-eye"></i></a>
-                                <a href="/admin/advertisement_approve_/{{ad.id}}/" class="btn btn-success"><i class="fas fa-check"></i></a>
-                                <a href="/admin/advertisement_reject_/{{ad.id}}/" class="btn btn-danger"><i class="fas fa-times"></i></a>
+        
+        <div class="row mt-5 mb-5">
+            {% if advertisements %}
+                {% for ad in advertisements %}
+                    <div class="col-md-6 col-sm-6 col-lg-6 col-xl-6 mb-4">
+                        <a href="/admin/advertisement_view_/{{ ad.id }}/">
+                        <div class="card border" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
+                            <div class="mt-3 d-flex align-items-center gap-2">
+                                <img src="{% if ad.created_by.image %}{{ ad.created_by.image.url }}{% else %}https://www.freeiconspng.com/thumbs/no-image-icon/no-image-icon-0.png{% endif %}" alt="User Avatar" width="30" height="30" class="rounded-circle ml-4 mr-3">
+                                <div>
+                                    <small class="text-muted fw-bold">{{ ad.created_by.first_name }} {{ ad.created_by.last_name }}</small><br>
+                                    <small class="text-muted">{{ ad.created_at|date:"F d, Y" }}</small>
                                 </div>
-                            </td>
+                            </div>
+                            <img src="/media/{{ ad.image }}" alt="{{ ad.name }}" style="height: 100px; width: 100%; object-fit: cover; padding: 10px;">
                             
-                        </tr>
-                        {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+                            <div class="card-body" style="flex: 1;">
+                                <h5 class="card-title" style="font-size: 1rem; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                    {{ ad.name }}
+                                </h5>
 
-            </div>
+                            </div>                            
+                        </div>
+                    </a>
+                    </div>
+                {% endfor %}
+                
+               
+            {% else %}
+                <div class="d-flex justify-content-center align-items-center text-center w-100" style="height: 300px;">
+    {% include 'dashboard/not_found.html' %}
+</div>
+            {% endif %}
         </div>
+        <!-- Confirm Modal -->
+        {% if advertisements.paginator.num_pages > 1 %}
+            <nav aria-label="Page navigation">
+                <ul class="pagination justify-content-center">
+                    {% if advertisements.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1">First</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ advertisements.previous_page_number }}">Previous</a>
+                        </li>
+                    {% endif %}
+
+                    {% for p in page_range %}
+                        {% if p == "..." %}
+                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                        {% else %}
+                            <li class="page-item {% if advertisements.number == p %}active{% endif %}">
+                                <a class="page-link" href="?page={{ p }}">{{ p }}</a>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if advertisements.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ advertisements.next_page_number }}">Next</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ advertisements.paginator.num_pages }}">Last</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>               
+        {% endif %}    
     </div>
+       <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
 {% endblock %}

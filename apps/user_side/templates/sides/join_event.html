@@ -4,21 +4,20 @@
 {% block content %}
 <h1 class="h3 mb-3">Join team to event</h1>
 <div class="card mb-3" style="max-width: auto;">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <h4 class="h3 mb-0">
+    <div class="card-header text-center d-flex justify-content-between align-items-center gap-2 flex-wrap event-view-top">
+        <div class="h5 mb-0">
             {{ event.name }} || {{ event.team_type }} || {{ event.team_person }}
-        </h4>
+        </div>
         <div>
             <a href="{% url 'user_side:event_view' event.id %}" class="btn btn-primary btn-sm">Back to View</a>
         </div>
     </div>
     
-    <div class="row g-0">
-        <div class="col-md-4">
-            <img src="https://pickleit.app/static/images/pickleit_newlogo.jpg" 
-                 class="img-fluid rounded-start" alt="Event Image">
+    <div class="d-flex align-items-center gap-3 p-4 position-relative event-view-block">
+        <div class="event-img-block">
+            <img src="https://pickleit.app/static/images/pickleit_newlogo.jpg" class="img-fluid rounded-start" alt="Event Image">
         </div>
-        <div class="col-md-8">
+        <div class="event-content-block">
             <div class="card-body">
                 <p><strong>Max Join Team:</strong> {{ event.max_number_team }} || 
                    <strong>Joined Team:</strong> {{ event.registered_team.count }}</p>
@@ -32,8 +31,35 @@
         </div>
     </div>
 </div>
-<div class="card">
-    <input type="text" id="teamSearch" class="form-control mt-3 mb-2" placeholder="Search teams...">
+<div class="card text-center">
+        <div class="card-header text-center d-flex justify-content-between align-items-center gap-2 flex-wrap">
+            <h2 class="h5">Your Joined Teams</h2>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                {% for team in user_registered_teams %}
+                    <div class="col-lg-2 col-md-3 col-sm-4 col-6 mb-3">
+                        <div class="card join-team-block team-card h-100 border-0 shadow-sm text-center p-2 m-0">
+                            {% if team.team_image %}
+                                <img src="{{ team.team_image.url }}" alt="{{ team.name }}" class="rounded-circle mb-2" width="80" height="80">
+                            {% else %}
+                                <img src="https://pickleit.app/static/images/pickleit_newlogo.jpg" alt="{{ team.name }}" class="rounded-circle mb-2" width="80" height="80">
+                            {% endif %}
+                            <h6 class="card-title mb-0">{{ team.name }}</h6>
+                        </div>
+                    </div>
+                {% empty %}
+                    <p>No team registered yet.</p>
+                {% endfor %}
+            </div>
+        </div>
+        
+    </div>
+<div class="card p-4">
+    <div class="d-flex justify-content-between align-items-center mt-3 mb-2">
+        <input type="text" id="teamSearch" class="form-control w-75" placeholder="Search teams...">
+        <a href="{% url 'user_side:create_team_user_side' %}" class="btn btn-success ms-3">Add Team</a>
+    </div>
     <h6 class="mt-4 mb-3"><strong>Select Teams:</strong></h6>
     <div class="team-container-wrapper">
         <div class="team-container" id="teamContainer">

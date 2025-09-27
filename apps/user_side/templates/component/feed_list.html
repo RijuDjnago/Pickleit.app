@@ -1,0 +1,577 @@
+{% load custom_filters %}
+<div class="container p-0 mt-4">
+    <!-- Create Post Section -->
+    {% if request.resolver_match.url_name == 'socail_feed_list' %}
+    <div class="card mb-4 shadow-sm border-0" id="create-post">
+        <div class="card-body">
+            <form id="create-post-form" action="{% url 'user_side:add_post' %}" method="POST" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <textarea class="form-control comment-input border-0" rows="3" name="text" placeholder="What's on your mind?" required></textarea>
+                </div>
+                <div class="mb-3" id="image-preview-container">
+                    <!-- Image previews will be dynamically added here -->
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <input type="file" class="d-none" id="post-file-input" name="file" accept="image/*" multiple>
+                        <button type="button" class="btn btn-outline-primary btn-sm me-2" onclick="document.getElementById('post-file-input').click();"><i class="fa fa-image me-1"></i>Add Image</button>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm"><i class="fa fa-paper-plane me-1"></i>Post</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- All Posts in One Card -->
+    <div class="card shadow-sm border-0 post-list-main">
+        <div class="card-body p-0 mt-3 mb-5">
+            {% for post in socail_feed_list %}
+                <div class="post d-flex flex-column bg-light rounded m-3 p-3 shadow-sm" id="post-{{ post.id }}" style="cursor: pointer;">
+                    <div class="w-100 d-flex align-items-center post-header mb-3 px-3">
+                        <img src="{% if post.user.image %}{{ post.user.image.url }}{% else %}https://www.freeiconspng.com/thumbs/no-image-icon/no-image-icon-0.png{% endif %}" alt="User" class="me-2 rounded-circle" style="width: 40px; height: 40px;">
+                        <div>
+                            <h6 class="mb-0 font-weight-bold">{{ post.user.first_name }} {{ post.user.last_name }}</h6>
+                            <small class="text-muted">{{ post.created_at|date:"j" | ordinal_day }} {{ post.created_at|date:"M, Y" }} <i class="fa fa-globe ms-1"></i></small>
+                        </div>
+                        {% if request.resolver_match.url_name == 'profile' and post.user.id == request.user.id %}
+                            <div class="dropdown three-dot-main ms-auto" onclick="event.stopPropagation();">
+                                <button class="three-dot btn btn-link text-muted p-1" type="button" id="dropdownMenuButton{{ post.id }}" data-toggle="dropdown" aria-expanded="false">
+                                    <i class="fa fa-ellipsis-h"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end shadow-sm" aria-labelledby="dropdownMenuButton{{ post.id }}">
+                                    <li><a class="dropdown-item" href="#" data-toggle="modal" data-target="#editPostModal{{ post.id }}">Edit Post</a></li>
+                                    <li><a class="dropdown-item text-danger delete-post-btn" href="#" data-post-id="{{ post.id }}">Delete Post</a></li>
+                                </ul>
+                            </div>
+                        {% endif %}
+                    </div>
+                    <div class="w-100 d-flex flex-column flex-md-row px-3 {% if post.post_file.all %}with-image{% else %}without-image{% endif %}">
+                        <div class="post-content flex-grow-1">
+                            <p class="card-text mb-3" id="post-content-{{ post.id }}" onclick="window.location.href = '{% url 'user_side:view_post' post.id %}'">{{ post.text }}</p>
+                            {% if post.post_file.all %}
+                            <div class="d-flex justify-content-center mb-3">
+                                <div id="feedCarousel{{ post.id }}" class="carousel slide w-100" data-ride="carousel">
+                                    <div class="carousel-inner">
+                                        {% for file in post.post_file.all %}
+                                            {% if file.file %}
+                                                <div class="carousel-item {% if forloop.first %}active{% endif %} d-flex justify-content-center">
+                                                    <img src="{{ file.file.url }}" class="img-fluid post-img rounded" alt="" data-toggle="modal" data-target="#fullImageModal{{ post.id }}" data-image-src="{{ file.file.url }}" style="cursor: pointer;">
+                                                </div>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </div>
+                                    {% if post.post_file.all|length > 1 %}
+                                        <a class="carousel-control-prev" href="#feedCarousel{{ post.id }}" role="button" data-slide="prev">
+                                            <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                                        </a>
+                                        <a class="carousel-control-next" href="#feedCarousel{{ post.id }}" role="button" data-slide="next">
+                                            <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                                        </a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endif %}
+                            <div class="d-flex justify-content-start text-muted mb-3 post-actions" onclick="event.stopPropagation();">
+                                <button class="btn btn-light action-btn like-btn me-2" data-post-id="{{ post.id }}">
+                                    {% if post.is_like %}
+                                        <i class="fa fa-heart text-danger btn-icon fs-5"></i><span class="ms-1">{{ post.number_like }}</span>
+                                    {% else %}
+                                        <i class="fa fa-heart btn-icon fs-5"></i><span class="ms-1">{{ post.number_like }}</span>
+                                    {% endif %}
+                                </button>
+                                <button class="btn btn-light action-btn me-2" data-toggle="modal" data-target="#commentModal{{ post.id }}">
+                                    <i class="fa fa-comment btn-icon fs-5"></i><span class="ms-1">{{ post.number_comment }}</span>
+                                </button>
+                                <button class="btn btn-light action-btn share-btn" data-post-url="{% url 'user_side:unauthenticated_base' post.id %}" data-post-id="{{ post.id }}">
+                                    <i class="fa fa-share btn-icon fs-5"></i><span class="ms-1">0</span>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="comment-section mt-3 {% if post.post_file.all %}ms-md-4 flex-shrink-0 w-md-25{% else %}w-100 mt-2{% endif %}">
+                            <p>Last few comments</p>
+                            <hr>
+                            <div id="comment-list-{{ post.id }}">
+                                {% for comment in post.post_comment.all|slice:":3" %}
+                                    <div class="comment bg-white p-2 rounded mb-2 shadow-sm" data-comment-id="{{ comment.id }}">
+                                        <div class="d-flex align-items-center mb-1">
+                                            <img src="{% if comment.user.image %}{{ comment.user.image.url }}{% else %}https://www.freeiconspng.com/thumbs/no-image-icon/no-image-icon-0.png{% endif %}" alt="User" class="comment-img rounded-circle me-2" style="width: 30px; height: 30px;">
+                                            <strong>{{ comment.user.first_name|default:"Anonymous" }}</strong>
+                                        </div>
+                                        <p class="mb-0">{{ comment.comment_text }}</p>
+                                        <small class="comment-date text-muted">{{ comment.created_at|date:"j" | ordinal_day }} {{ comment.created_at|date:"M, Y" }}</small>
+                                    </div>
+                                {% empty %}
+                                    <p class="no-comments text-muted">No comments yet.</p>
+                                {% endfor %}
+                            </div>
+                            <div class="input-group mt-3">
+                                <input type="text" class="form-control comment-input" name="comment_text" placeholder="Write a comment..." data-post-id="{{ post.id }}">
+                                <button type="button" class="btn btn-primary btn-sm ms-2 comment-submit-btn" data-post-id="{{ post.id }}"><i class="fa fa-paper-plane"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% if not forloop.last %}
+                    <hr class="mx-3">
+                {% endif %}
+
+                <!-- Full Image Modal -->
+                <div class="modal fade" id="fullImageModal{{ post.id }}" tabindex="-1" role="dialog" aria-labelledby="fullImageModalLabel{{ post.id }}" aria-hidden="true">
+                    <div class="modal-dialog modal-xl modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="fullImageModalLabel{{ post.id }}">Full Image</h5>
+                                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                    <span aria-hidden="true">&times;</span>
+                                </button>
+                            </div>
+                            <div class="modal-body d-flex justify-content-center">
+                                <img id="full-image-{{ post.id }}" src="" class="img-fluid" alt="Full Image" style="max-height: 80vh; object-fit: contain;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Edit Post Modal -->
+                <div class="modal fade" id="editPostModal{{ post.id }}" tabindex="-1" role="dialog" aria-labelledby="editPostModalLabel{{ post.id }}" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="editPostModalLabel{{ post.id }}">Edit Post</h5>
+                                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                    <span aria-hidden="true">&times;</span>
+                                </button>
+                            </div>
+                            <div class="modal-body">
+                                <form id="edit-post-form-{{ post.id }}">
+                                    {% csrf_token %}
+                                    <textarea class="form-control" rows="4" name="text">{{ post.text }}</textarea>
+                                </form>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                                <button type="button" class="btn btn-primary edit-post-btn" data-post-id="{{ post.id }}">Save changes</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Comment Modal -->
+                <div class="modal fade" id="commentModal{{ post.id }}" tabindex="-1" role="dialog" aria-labelledby="commentModalLabel{{ post.id }}" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="commentModalLabel{{ post.id }}">Comments</h5>
+                                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                    <span aria-hidden="true">&times;</span>
+                                </button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="d-flex align-items-center post-header mb-3">
+                                    <img src="{% if post.user.image %}{{ post.user.image.url }}{% else %}https://www.freeiconspng.com/thumbs/no-image-icon/no-image-icon-0.png{% endif %}" alt="User" class="me-2 rounded-circle" style="width: 40px; height: 40px;">
+                                    <div>
+                                        <h6 class="mb-0">{{ post.user.first_name }} {{ post.user.last_name }}</h6>
+                                        <small class="text-muted">{{ post.created_at|date:"j" | ordinal_day }} {{ post.created_at|date:"M, Y" }} <i class="fa fa-globe ms-1"></i></small>
+                                    </div>
+                                </div>
+                                <p class="card-text">{{ post.text }}</p>
+                                <div id="commentCarousel{{ post.id }}" class="carousel slide" data-ride="carousel">
+                                    <div class="carousel-inner">
+                                        {% for file in post.post_file.all %}
+                                            {% if file.file %}
+                                                <div class="carousel-item {% if forloop.first %}active{% endif %}">
+                                                    <img src="{{ file.file.url }}" class="img-fluid post-img mb-3 rounded" alt="">
+                                                </div>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </div>
+                                    {% if post.post_file.all|length > 1 %}
+                                        <a class="carousel-control-prev" href="#commentCarousel{{ post.id }}" role="button" data-slide="prev">
+                                            <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                                        </a>
+                                        <a class="carousel-control-next" href="#commentCarousel{{ post.id }}" role="button" data-slide="next">
+                                            <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                                        </a>
+                                    {% endif %}
+                                </div>
+                                <div class="comment-section mt-3">
+                                    <div id="modal-comment-list-{{ post.id }}">
+                                        {% for comment in post.post_comment.all %}
+                                            <div class="comment bg-white p-2 rounded mb-2 shadow-sm" data-comment-id="{{ comment.id }}">
+                                                <div class="d-flex align-items-center mb-1">
+                                                    <img src="{% if comment.user.image %}{{ comment.user.image.url }}{% else %}https://www.freeiconspng.com/thumbs/no-image-icon/no-image-icon-0.png{% endif %}" alt="User" class="comment-img rounded-circle me-2" style="width: 30px; height: 30px;">
+                                                    <strong>{{ comment.user.first_name|default:"Anonymous" }}</strong>
+                                                </div>
+                                                <p class="mb-0">{{ comment.comment_text }}</p>
+                                                <small class="comment-date text-muted">{{ comment.created_at|date:"j" | ordinal_day }} {{ comment.created_at|date:"M, Y" }}</small>
+                                            </div>
+                                        {% empty %}
+                                            <p class="no-comments text-muted">No comments yet.</p>
+                                        {% endfor %}
+                                    </div>
+                                    <div class="input-group mt-3">
+                                        <input type="text" class="form-control comment-input rounded-pill" name="comment_text" placeholder="Write a comment..." data-post-id="{{ post.id }}">
+                                        <button type="button" class="btn btn-primary btn-sm rounded-pill ms-2 comment-submit-btn" data-post-id="{{ post.id }}"><i class="fa fa-paper-plane"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% empty %}
+                {% include 'base/not_found.html' %}
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Share Modal -->
+    <div class="modal fade" id="shareModal" tabindex="-1" role="dialog" aria-labelledby="shareModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="shareModalLabel">Share Post</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex flex-column gap-2">
+                        <a id="whatsapp-share" href="#" class="btn btn-outline-success d-flex align-items-center gap-2" target="_blank">
+                            <i class="fab fa-whatsapp fa-lg"></i> Share on WhatsApp
+                        </a>
+                        <a id="facebook-share" href="#" class="btn btn-outline-primary d-flex align-items-center gap-2" target="_blank">
+                            <i class="fab fa-facebook fa-lg"></i> Share on Facebook
+                        </a>
+                        <a id="twitter-share" href="#" class="btn btn-outline-info d-flex align-items-center gap-2" target="_blank">
+                            <i class="fab fa-x-twitter fa-lg"></i> Share on X
+                        </a>
+                        <div class="position-relative">
+                            <button id="copy-link" class="btn btn-outline-secondary d-flex align-items-center gap-2 w-100">
+                                <i class="fa fa-clipboard fa-lg"></i> Copy Link
+                            </button>
+                            <span id="copy-message" class="position-absolute top-50 start-100 translate-middle-y badge bg-success ms-2" style="display: none;">
+                                Copied!
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+<script>
+    $(document).ready(function () {
+        // Pass current user's data to JavaScript
+        var currentUserName = "{{ request.user.first_name|default:'Anonymous' }}";
+        var currentUserImage = "{{ request.user.image.url|default:'https://www.freeiconspng.com/thumbs/no-image-icon/no-image-icon-0.png' }}";
+
+        // Full image modal functionality
+        $('.post-img').on('click', function (e) {
+            e.stopPropagation();
+            var modalId = $(this).attr('data-target');
+            var fullImage = $(modalId).find('#full-image-' + $(this).closest('.post').attr('id').split('-')[1]);
+            fullImage.attr('src', $(this).attr('data-image-src'));
+        });
+
+        // Like functionality
+        $('.like-btn').on('click', function (e) {
+            e.stopPropagation();
+            var postId = $(this).attr('data-post-id');
+            var heartIcon = $(this).find('i');
+            var likeCountSpan = $(this).find('span');
+
+            $.ajax({
+                url: `/user_side/like_post/${postId}/`,
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                success: function (data) {
+                    if (data.error) {
+                        alert('Error: ' + data.error);
+                        return;
+                    }
+                    if (data.is_liked) {
+                        heartIcon.removeClass('fa-heart').addClass('fa-heart text-danger');
+                    } else {
+                        heartIcon.removeClass('fa-heart text-danger').addClass('fa-heart');
+                    }
+                    likeCountSpan.text(data.like_count);
+                },
+                error: function (error) {
+                    console.error('Error:', error);
+                    alert('An error occurred while processing your request.');
+                }
+            });
+        });
+
+        // Edit post functionality
+        $('.edit-post-btn').on('click', function () {
+            var postId = $(this).attr('data-post-id');
+            var form = $('#edit-post-form-' + postId);
+            var textArea = form.find('textarea[name="text"]');
+            var newText = textArea.val().trim();
+
+            if (!newText) {
+                alert('Post content cannot be empty.');
+                return;
+            }
+
+            $.ajax({
+                url: `/user_side/edit_post/${postId}/`,
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                data: JSON.stringify({ text: newText }),
+                contentType: 'application/json',
+                success: function (data) {
+                    if (data.error) {
+                        alert('Error: ' + data.error);
+                        return;
+                    }
+                    $('#post-content-' + postId).text(data.text);
+                    $('#editPostModal' + postId).modal('hide');
+                },
+                error: function (error) {
+                    console.error('Error:', error);
+                    alert('An error occurred while processing your request.');
+                }
+            });
+        });
+
+        // Delete post functionality
+        $('.delete-post-btn').on('click', function (e) {
+            e.preventDefault();
+            var postId = $(this).attr('data-post-id');
+
+            if (!confirm('Are you sure you want to delete this post?')) {
+                return;
+            }
+
+            $.ajax({
+                url: `/user_side/delete_post/${postId}/`,
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                success: function (data) {
+                    if (data.error) {
+                        alert('Error: ' + data.error);
+                        return;
+                    }
+                    var postElement = $('#post-' + postId);
+                    var nextHr = postElement.next('hr');
+                    if (nextHr.length) {
+                        nextHr.remove();
+                    }
+                    postElement.remove();
+                },
+                error: function (error) {
+                    console.error('Error:', error);
+                    alert('An error occurred while processing your request.');
+                }
+            });
+        });
+
+        // Comment submission functionality
+        $('.comment-submit-btn').on('click', function (e) {
+            e.stopPropagation();
+            var postId = $(this).attr('data-post-id');
+            var input = $(this).prev('input[name="comment_text"]');
+            var commentText = input.val().trim();
+
+            if (!commentText) {
+                alert('Comment cannot be empty.');
+                return;
+            }
+
+            $.ajax({
+                url: `{% url 'user_side:add_comment' 0 %}`.replace('0', postId),
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                data: {
+                    comment_text: commentText
+                },
+                success: function (data) {
+                    if (data.error) {
+                        alert('Error: ' + data.error);
+                        return;
+                    }
+                    // Update comment count
+                    var commentCountSpan = $('#post-' + postId).find('.post-actions .action-btn:eq(1) span');
+                    commentCountSpan.text(data.comment_count || 0);
+
+                    // Add new comment to the feed and modal with current user's data
+                    var userName = data.user_name || currentUserName;
+                    var userImage = data.user_image || currentUserImage;
+                    var createdAt = data.created_at || new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+
+                    var commentHtml = `
+                        <div class="comment bg-white p-2 rounded mb-2 shadow-sm" data-comment-id="${data.comment_id || 0}">
+                            <div class="d-flex align-items-center mb-1">
+                                <img src="${userImage}" alt="User" class="comment-img rounded-circle me-2" style="width: 30px; height: 30px;">
+                                <strong>${userName}</strong>
+                            </div>
+                            <p class="mb-0">${data.comment_text || commentText}</p>
+                            <small class="comment-date text-muted">${createdAt}</small>
+                        </div>
+                    `;
+                    var commentList = $('#comment-list-' + postId);
+                    var modalCommentList = $('#modal-comment-list-' + postId);
+                    var noComments = commentList.find('.no-comments');
+                    if (noComments.length) {
+                        noComments.remove();
+                    }
+                    commentList.prepend(commentHtml);
+                    modalCommentList.prepend(commentHtml);
+                    input.val(''); // Clear input
+                },
+                error: function (error) {
+                    console.error('Error:', error);
+                    alert('An error occurred while adding your comment.');
+                }
+            });
+        });
+
+        // Share functionality
+        $('.share-btn').on('click', function (e) {
+            e.stopPropagation();
+            var postUrl = window.location.origin + $(this).attr('data-post-url');
+            var postId = $(this).attr('data-post-id');
+            var postText = $('#post-content-' + postId).text();
+            var postImage = $('#feedCarousel' + postId + ' .carousel-item.active img');
+            var imageUrl = postImage.length ? window.location.origin + postImage.attr('src') : '';
+
+            if (navigator.share) {
+                navigator.share({
+                    title: 'Check out this post!',
+                    text: postText,
+                    url: postUrl
+                }).then(() => console.log('Share successful'))
+                  .catch(err => {
+                      console.error('Share failed:', err);
+                      showShareModal(postUrl, postText, imageUrl);
+                  });
+            } else {
+                showShareModal(postUrl, postText, imageUrl);
+            }
+        });
+
+        function showShareModal(url, text, imageUrl) {
+            var encodedUrl = encodeURIComponent(url);
+            var encodedText = encodeURIComponent(text);
+            var encodedImageUrl = imageUrl ? encodeURIComponent(imageUrl) : '';
+
+            // Update Open Graph meta tags
+            $('meta[property^="og:"]').remove();
+            var ogTags = [
+                { property: 'og:title', content: 'Check out this post!' },
+                { property: 'og:description', content: text },
+                { property: 'og:url', content: url },
+                { property: 'og:type', content: 'article' }
+            ];
+            if (imageUrl) {
+                ogTags.push({ property: 'og:image', content: imageUrl });
+            }
+            ogTags.forEach(function (tag) {
+                $('<meta>').attr('property', tag.property).attr('content', tag.content).appendTo('head');
+            });
+
+            // Update modal links
+            $('#whatsapp-share').attr('href', `https://wa.me/?text=${encodedText}%20${encodedUrl}${encodedImageUrl ? '%20' + encodedImageUrl : ''}`);
+            $('#facebook-share').attr('href', `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`);
+            $('#twitter-share').attr('href', `https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}${encodedImageUrl ? '&media=' + encodedImageUrl : ''}`);
+            $('#copy-link').off('click').on('click', function () {
+                var shareText = imageUrl ? `${text}\n${url}\n${imageUrl}` : `${text}\n${url}`;
+                navigator.clipboard.writeText(shareText)
+                    .then(() => {
+                        $('#copy-message').show();
+                        setTimeout(() => {
+                            $('#copy-message').hide();
+                            $('#shareModal').modal('hide');
+                        }, 1500);
+                    })
+                    .catch(err => console.error('Failed to copy:', err));
+            });
+
+            $('#shareModal').modal('show');
+        }
+    });
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const fileInput = document.getElementById('post-file-input');
+        const previewContainer = document.getElementById('image-preview-container');
+        const form = document.getElementById('create-post-form');
+
+        fileInput.addEventListener('change', function (e) {
+            const files = e.target.files;
+            previewContainer.innerHTML = ''; // Clear previous previews
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                if (file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+
+                    reader.onload = function (e) {
+                        const div = document.createElement('div');
+                        div.className = 'image-preview d-inline-block position-relative me-2 mb-2';
+                        div.style.maxWidth = '150px';
+
+                        const img = document.createElement('img');
+                        img.src = e.target.result;
+                        img.className = 'img-fluid rounded';
+                        img.style.maxHeight = '100px';
+                        img.style.objectFit = 'cover';
+
+                        const closeBtn = document.createElement('button');
+                        closeBtn.type = 'button';
+                        closeBtn.className = 'close position-absolute top-0 end-0 btn btn-danger btn-sm';
+                        closeBtn.innerHTML = '&times;';
+                        closeBtn.style.zIndex = '1';
+                        closeBtn.style.margin = '5px';
+                        closeBtn.onclick = function () {
+                            div.remove();
+                            // Update file input to remove the file
+                            const dt = new DataTransfer();
+                            const remainingFiles = Array.from(fileInput.files).filter((_, index) => index !== i);
+                            remainingFiles.forEach(file => dt.items.add(file));
+                            fileInput.files = dt.files;
+                        };
+
+                        div.appendChild(img);
+                        div.appendChild(closeBtn);
+                        previewContainer.appendChild(div);
+                    };
+
+                    reader.readAsDataURL(file);
+                }
+            }
+        });
+
+        // Ensure form submission only includes selected files
+        form.addEventListener('submit', function (e) {
+            if (fileInput.files.length === 0) {
+                // Optional: Allow submission without images
+                return;
+            }
+        });
+    });
+</script>

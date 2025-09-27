@@ -58,6 +58,8 @@ PLAY_TYPE =(
     ("Round Robin", "Round Robin"),
     ("Single Elimination", "Single Elimination"),
     ("Individual Match Play", "Individual Match Play"),
+    ("Round Robin Compete to Final", "Round Robin Compete to Final"),
+    ("Robin Randomizer", "Robin Randomizer"),
 )
 
 class Team(models.Model):
@@ -274,7 +276,11 @@ class Tournament(models.Model):
     
     def __str__(self) :
         # str = f"{self.leagues.name} ({self.team1.name} vs {self.team2.name})|| {self.match_type} || Match Number {self.match_number}"
-        return f"{self.leagues.name}|| Match Number {self.match_number}"    
+        if self.leagues:
+            name = self.leagues.name
+        else:
+            name = None
+        return f"{name}|| Match Number {self.match_number}"    
 
 class TournamentSetsResult(models.Model):
     uuid = models.UUIDField(default=uuid.uuid4)
@@ -306,26 +312,12 @@ class TournamentSetsResult(models.Model):
 
                 tournament.winner_team_score = str(max(team1_total, team2_total))
                 tournament.loser_team_score = str(min(team1_total, team2_total))
-                tournament.is_completed = True
+                # tournament.is_completed = True
                 if not tournament.playing_date_time:
                     tournament.playing_date_time = timezone.now()
                 tournament.save()
 
-    def __str__(self):
-        try:
-            team_1 = self.tournament.team1.name
-        except:
-            team_1 = None
-        try:
-            team_2 = self.tournament.team2.name
-        except:
-            team_2 = None
-        try:
-            return_result = f"{self.tournament.leagues.name} ({team_1} VS {team_2}) || Match Number {self.tournament.match_number} || Point {self.team1_point}-{self.team2_point} || win {self.win_team}"
-        except Exception as e:
-            return_result = str(e)
-        return return_result
-        
+    
 
 
 class PaymentDetailsForRegister(models.Model):
@@ -349,7 +341,10 @@ class SaveLeagues(models.Model):
     created_by = models.ForeignKey(User,on_delete=models.SET_NULL, null=True, blank=True, related_name='save_turnamenet_user')
 
     def __str__(self) :
-        return f"{self.ch_league.name}"
+        name = None
+        if self.ch_league:
+            name = self.ch_league.name
+        return f"{name}"
 
 
 class TournamentScoreApproval(models.Model):
@@ -359,7 +354,10 @@ class TournamentScoreApproval(models.Model):
     organizer_approval = models.BooleanField(default=False)
 
     def __str__(self):
-        return f'{self.tournament.leagues.name} - {self.tournament.match_number}'
+        name = None
+        if self.tournament.leagues:
+            name = self.tournament.leagues.name
+        return f'{name} - {self.tournament.match_number}'
 
 
 REPORT_CHOICES = (
@@ -375,4 +373,14 @@ class TournamentScoreReport(models.Model):
 
     def __str__(self):
         return f'{self.tournament.leagues.name} - {self.tournament.match_number}'   
+    
 
+class OpenPlayInvitation(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='open_play_invitation_user')
+    event = models.ForeignKey(Leagues, on_delete=models.CASCADE, related_name='open_play_event')
+    invited_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='invited_by_user')
+    status = models.CharField(max_length=255, choices=(('Accepted', 'Accepted'), ('Declined', 'Declined'), ('Pending', 'Pending')), default='Pending')
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+
+    def __str__(self):
+        return f'{self.user.first_name} - {self.event} - {self.invited_by.first_name} - {self.status}'

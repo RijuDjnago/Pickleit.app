@@ -15,7 +15,9 @@ from apps.user.models import AllPaymentsTable, TransactionFor, User, Wallet, Wal
 from apps.team.views import notify_edited_player
 from decimal import Decimal
 from django.utils import timezone
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
+from django.db.models.functions import TruncDate
+from django.db.models import Count
 from django.utils.timezone import make_aware
 from geopy.distance import geodesic
 from django.db.models import Q
@@ -92,51 +94,59 @@ class BookClubSerializer(serializers.ModelSerializer):
     user_image = serializers.CharField(source="user.image", read_only=True)
     package_ins = ClubPackageSerializer(source="package", read_only=True)
     club = ClubListSerializer(source="package.club", read_only=True)
+    is_expired = serializers.SerializerMethodField()
 
     class Meta:
         model = BookClub
-        fields = ["id", "user_first_name", "user_last_name" ,"user_image", "club", "package_ins", "date", "price", "qr_data"]
+        fields = [
+            "id", 
+            "user_first_name", 
+            "user_last_name", 
+            "user_image", 
+            "club", 
+            "package_ins", 
+            "date", 
+            "price", 
+            "qr_data", 
+            "apply_date",
+            "is_expired"
+        ]
 
-# class ClubPackageSerializer(serializers.ModelSerializer):
-#     days_left = serializers.SerializerMethodField()
-#     booking_count = serializers.SerializerMethodField()  # New field for booking count
-
-#     class Meta:
-#         model = ClubPackage
-#         fields = [
-#             'id', 'package_id', 'name', 'valid_start_date', 'valid_end_date', 
-#             'member', 'description', 'price', 'unit', 'member_ship_discount', 
-#             'days_left', 'booking_count'  # Added booking_count to fields
-#         ]
-
-#     def get_days_left(self, obj):
-#         """Calculate the remaining days until the package expires"""
-#         if obj.valid_end_date:
-#             remaining_days = (obj.valid_end_date - date.today()).days
-#             return max(remaining_days, 0)  # Ensure no negative values
-#         return None
-
-#     def get_booking_count(self, obj):
-#         """Count the number of bookings for this package"""
-#         return BookClub.objects.filter(package=obj).count()
-
+    def get_is_expired(self, obj):
+        # Check if booking date is before today
+        return obj.date.date() < timezone.now().date()
 
 
 # Pagination
-class ClubPagination(PageNumberPagination):
+class BasePagination(PageNumberPagination):
+    def get_paginated_response(self, data):
+        response = super().get_paginated_response(data)
+        # Force HTTPS in pagination links
+        for link_type in ['next', 'previous']:
+            link = response.data.get(link_type)
+            if link:
+                response.data[link_type] = link.replace('http://', 'https://')
+        return response
+
+class ClubPagination(BasePagination):
     page_size = 10
     page_size_query_param = 'page_size'
     max_page_size = 100
 
-class JoinUserPagination(PageNumberPagination):
+class JoinUserPagination(BasePagination):
     page_size = 10  # Number of items per page
     page_size_query_param = 'page_size'
     max_page_size = 50
 
-class BookingUserPagination(PageNumberPagination):
+class BookingUserPagination(BasePagination):
     page_size = 10  # Number of items per page
     page_size_query_param = 'page_size'
     max_page_size = 50
+
+class JoinClubPagination(BasePagination):
+    page_size = 10  # Adjust as needed
+    page_size_query_param = 'page_size'
+    max_page_size = 100
 
 # Views
 @api_view(['POST'])
@@ -172,16 +182,6 @@ def add_club(request):
         return Response({"message": f"Missing field: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
 
-# class MyClubsView(generics.ListAPIView):
-#     """API to list my clubs with pagination."""
-#     serializer_class = ClubListSerializer
-#     pagination_class = ClubPagination
-
-#     def get_queryset(self):
-#         user_uuid = self.request.query_params.get("user_uuid")
-#         user = get_object_or_404(User, uuid=user_uuid)
-#         return Club.objects.filter(user=user, diactivate=False)
-
 
 @api_view(['GET'])
 def my_club_list(request):
@@ -209,6 +209,71 @@ def view_club(request, club_id):
     serializer = ClubSerializer(club, context={"user_uuid": request.GET.get("user_uuid")})
     
     return Response(serializer.data, status=status.HTTP_200_OK)
+
+@api_view(['POST'])
+def edit_club(request):
+    """API to edit a club's details and update images."""
+    try:
+        data = request.data
+        user = get_object_or_404(User, uuid=data.get("user_uuid"))
+        club = get_object_or_404(Club, id=data.get("club_id"))
+
+        # Check if the user is authorized to edit the club
+        if club.user != user:
+            return Response(
+                {"message": "You are not authorized to edit this club."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Update club fields
+        club.name = data.get("name", club.name)
+        club.location = data.get("location", club.location)
+        club.latitude = data.get("latitude", club.latitude)
+        club.longitude = data.get("longitude", club.longitude)
+        club.open_time = data.get("open_time", club.open_time)
+        club.close_time = data.get("close_time", club.close_time)
+        club.contact = data.get("contact", club.contact)
+        club.email = data.get("email", club.email)
+        club.description = data.get("description", club.description)
+        club.join_amount = float(data.get("join_amount", club.join_amount))
+        club.is_vip = str(data.get("is_vip")).lower() == "true"
+
+        # Optional fields (if they exist in your model)
+        if hasattr(club, 'price'):
+            club.price = data.get("price", club.price)
+        if hasattr(club, 'price_unit'):
+            club.price_unit = data.get("price_unit", club.price_unit)
+        if hasattr(club, 'offer_price'):
+            club.offer_price = data.get("offer_price", club.offer_price)
+
+        # Save club to validate latitude/longitude
+        club.save()
+
+        # Handle image uploads
+        if 'images' in request.FILES:
+            images = request.FILES.getlist('images')  # Get list of uploaded images
+            for image in images:
+                ClubImage.objects.create(club=club, image=image)
+
+        # Handle image deletions (optional)
+        if 'delete_image_ids' in data:
+            delete_ids = data.get('delete_image_ids', [])
+            if isinstance(delete_ids, str):
+                delete_ids = delete_ids.split(',')  # Handle comma-separated IDs
+            ClubImage.objects.filter(club=club, id__in=delete_ids).delete()
+
+        return Response(
+            {"message": "Club details and images updated successfully!"},
+            status=status.HTTP_200_OK
+        )
+
+    except ValidationError as e:
+        return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    except KeyError as e:
+        return Response({"message": f"Missing field: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        return Response({"message": f"An error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
 
 
 @api_view(['POST'])
@@ -752,7 +817,14 @@ def store_book_club_stripe_payement(request, stripe_fee, my_data, checkout_sessi
             admin_wallet.save()
             user_wallet.balance = 0.0
             user_wallet.save()
-
+            #need to add notification
+            reword_user = User.objects.filter(id=club.user.id).first()
+            message = f"{get_user.first_name} booked your club: {club.name} at {date}"
+            title = "User Booked Club"
+            notify_edited_player(reword_user.id, title, message)
+            club_user = User.objects.filter(id=club.user.id).first()
+            message2 = f"{get_user.first_name} booked your club: {club.name} at {date}"  
+            notify_edited_player(club_user.id, title, message2)
         if payment_status:
             return render(request, "club/success_payment_for_booking_club.html")
         else:
@@ -771,27 +843,20 @@ club booking list
 def club_booking_list(request):
     date = timezone.now()
     club_id = request.GET.get("club_id", None)
-    expire = request.GET.get("expire", "False")
-    user = get_object_or_404(User, uuid=request.GET.get("user_uuid"))  # This user is the club owner
+    filter_key = request.GET.get("filter", None)
+    user = get_object_or_404(User, uuid=request.GET.get("user_uuid"))
+    club = get_object_or_404(Club, id=club_id, user=user)
+    booking_list = BookClub.objects.filter(package__club__user=user, package__club = club)
 
-    # Get all bookings for clubs owned by this user
-    booking_list = BookClub.objects.filter(package__club__user=user)
 
-    # print()
-    for i in BookClub.objects.all():
-        print(user, i.package.club.user) 
-        print(date, i.date, i.date >= date)
-
-    # Filter based on expiration status
-    if expire == "True":
-        booking_list = booking_list.filter(date__gte=date)
-    else:
+    if filter_key == "expire":
         booking_list = booking_list.filter(date__lt=date)
-
-    # If a specific club_id is provided, filter bookings for that club
-    if club_id:
-        club = get_object_or_404(Club, id=club_id, user=user)  # Ensure the user owns this club
-        booking_list = booking_list.filter(package__club=club)
+    elif filter_key == "today": 
+        booking_list = booking_list.filter(date__date=date.date())
+    elif filter_key == "future":   
+        booking_list = booking_list.filter(date__gt=date)
+    
+    
 
     # Paginate results
     paginator = BookingUserPagination()
@@ -827,10 +892,7 @@ class JoinClubListSerializer(serializers.ModelSerializer):
         image = ClubImage.objects.filter(club=obj.club).values("image")
         return image if image else []
 
-class JoinClubPagination(PageNumberPagination):
-    page_size = 10  # Adjust as needed
-    page_size_query_param = 'page_size'
-    max_page_size = 100
+
 
 @api_view(['GET'])
 def user_club_join_list(request):
@@ -854,16 +916,11 @@ user show her/him booking clubs cupon list
 @api_view(['GET'])
 def user_booking_list(request):
     data = request.GET
-    date = timezone.now()
-    expire = data.get("expire", False)
     user = get_object_or_404(User, uuid=data.get("user_uuid"))
-    if expire is True:
-        Booking_list = BookClub.objects.filter(user=user)
-    else:
-        Booking_list = BookClub.objects.filter(user=user)
+    booking_list = BookClub.objects.filter(user=user).order_by('-date')[:10]
     paginator = BookingUserPagination()
-    paginated_users = paginator.paginate_queryset(Booking_list, request)
-    serializer = BookClubSerializer(paginated_users, many=True)
+    paginated_bookings = paginator.paginate_queryset(booking_list, request)
+    serializer = BookClubSerializer(paginated_bookings, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
 
 
@@ -887,10 +944,6 @@ class SearchClubListSerializer(serializers.ModelSerializer):
             return JoinClub.objects.filter(club=obj, block=False).exists()
         return False
 
-class ClubPagination(PageNumberPagination):
-    page_size = 10  # Set page size (can be adjusted)
-    page_size_query_param = "page_size"
-    max_page_size = 50
 
 class ClubSearchAPIView(ListAPIView):
     serializer_class = SearchClubListSerializer
@@ -932,6 +985,175 @@ class ClubSearchAPIView(ListAPIView):
 
         serializer = self.get_serializer(queryset, many=True, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+
+
+
+
+
+
+"""
+club weekly join details
+"""
+@api_view(['GET'])
+def weekly_join_details(request):
+    data = request.GET
+    today = timezone.now().date()
+    user = get_object_or_404(User, uuid=data.get("user_uuid"))
+    club = get_object_or_404(Club, id=data.get("club_id"))
+
+    start_date = today - timedelta(days=6)
+
+    # Get JoinClub counts per day in the 7-day range
+    joins = (
+        JoinClub.objects.filter(
+            club=club,
+            join_date__date__range=[start_date, today]
+        )
+        .annotate(day=TruncDate('join_date'))
+        .values('day')
+        .annotate(count=Count('id'))
+        .order_by('day')
+    )
+
+    join_counts = {item['day']: item['count'] for item in joins}
+
+    weekly_data = []
+    for i in range(7):
+        day = start_date + timedelta(days=i)
+        weekly_data.append(join_counts.get(day, 0))
+
+    total = sum(weekly_data)
+
+    return Response({
+        'weekly_data': weekly_data,
+        'total': total
+    }, status=status.HTTP_200_OK)
+
+
+"""
+club weekly booking details
+"""
+@api_view(['GET'])
+def weekly_booking_details(request):
+    data = request.GET
+    today = timezone.now().date()
+    user = get_object_or_404(User, uuid=data.get("user_uuid"))
+    # Optional: filter by package or club if needed
+    # package = get_object_or_404(ClubPackage, id=data.get("package_id"))
+
+    start_date = today - timedelta(days=6)
     
+    bookings = (
+        BookClub.objects.filter(  
+            date__date__range=[start_date, today]
+        )
+        .annotate(day=TruncDate('date'))
+        .values('day')
+        .annotate(count=Count('id'))
+        .order_by('day')
+    )
+
+    booking_counts = {item['day']: item['count'] for item in bookings}
+
+    weekly_data = []
+    for i in range(7):
+        day = start_date + timedelta(days=i)
+        weekly_data.append(booking_counts.get(day, 0))
+
+    total = sum(weekly_data)
+
+    return Response({
+        'weekly_data': weekly_data,
+        'total': total
+    }, status=status.HTTP_200_OK)
+
+
+
+
+
+
+class ClubTransectionSerializer(serializers.ModelSerializer):
+    sender_full_name = serializers.SerializerMethodField()
+    reciver_full_name = serializers.SerializerMethodField()
+    details = serializers.SerializerMethodField()
+
+    class Meta:
+        model = WalletTransaction
+        fields = [
+            'id',
+            'transaction_id',
+            'sender_full_name',
+            'reciver_full_name',
+            'transaction_type',
+            'transaction_for',
+            'amount',
+            'description',
+            'created_at',
+            'details',
+        ]
+
+    def get_sender_full_name(self, obj):
+        return f"{obj.sender.first_name} {obj.sender.last_name}".strip()
+
+    def get_reciver_full_name(self, obj):
+        if obj.reciver:
+            return f"{obj.reciver.first_name} {obj.reciver.last_name}".strip()
+        return None
+
+    def get_details(self, obj):
+        da = {}
+        try:
+            transactionfor = TransactionFor.objects.filter(transaction=obj)
+            if transactionfor.exists():
+                transactionfor = transactionfor.first()
+                da = transactionfor.details      
+            return da
+        except Exception:
+            return da
+
+
+@api_view(['GET'])
+def club_transection_list(request):
+    user_uuid = request.GET.get("user_uuid")
+    club_id = request.GET.get("club_id")
+    user = get_object_or_404(User, uuid=user_uuid)
+    club = get_object_or_404(Club, id=club_id)
+    if user != club.user:
+        return Response({"message": "You are not authorized to view this club's transactions."}, status=status.HTTP_403_FORBIDDEN)
+    transection = WalletTransaction.objects.filter(reciver=club.user).filter(Q(transaction_for="JoinClub") | Q(transaction_for="BookClub")).order_by("-id")
+    serializer = ClubTransectionSerializer(transection, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+@api_view(['POST'])
+def club_qr_code_scanning(request):
+    """API to join a club with balance validation."""
+    try:
+        data = request.data
+        user = get_object_or_404(User, uuid=data.get("user_uuid"))
+        club = get_object_or_404(Club, id=data.get("club_id"))
+        qr_data = data.get("qr_data")
+        today = timezone.now().date()
+        if not qr_data:
+            return Response({"scanning_status":False, "details":{}, "message": "QR data is required"}, status=status.HTTP_400_BAD_REQUEST)
+        scanning = BookClub.objects.filter(qr_data=qr_data, package__club=club, date__date=today)
+        if not scanning.exists():
+            return Response({"scanning_status":False, "details":{}, "message": "QR code is not valid"}, status=status.HTTP_400_BAD_REQUEST)
+        scanning = scanning.first()
+        scanning_details = {
+            "user": scanning.user.first_name + " " + scanning.user.last_name,
+            "club": scanning.package.club.name,
+            "package_name": scanning.package.name,
+            "package": scanning.package.name,
+            "date": scanning.date.strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        return Response({"scanning_status":True, "details":scanning_details, "message": "QR code is valid"}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"scanning_status":False, "details":{}, "message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
 
 

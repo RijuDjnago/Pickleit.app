@@ -59,11 +59,17 @@
             </div>
         </div>
     </div>
+    <div class="row mt-4">
 
+    <div class="col-xl-12">
+      {% include 'component/my_feed.html' %}
+    </div>
+</div>
 </div>
 
 {% endblock %}
 {% block scripts %}
+<script async defer src="https://maps.googleapis.com/maps/api/js?key={{ MAP_API_KEY }}&callback=initMap"></script>
 <script>
     function initMap() {
         var userLocation = { lat: 22.5354, lng: 88.3473 }; // Set default location
@@ -104,10 +110,46 @@
             }
         });
     });
-</script>
 
-<!-- Google Maps API (Make sure the key is valid) -->
-<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAQ_OGAb4yuL8g55IMufP3Dwd4yjrWxrdI&callback=initMap"></script>
-
+    document.addEventListener('DOMContentLoaded', function() {
+        const likeButtons = document.querySelectorAll('.like-btn');
+        
+        likeButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const postId = this.getAttribute('data-post-id');
+                const heartIcon = this.querySelector('i');
+                const likeCountSpan = this.querySelector('.like-count');
+                
+                fetch(`/user_side/like_post/${postId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Content-Type': 'application/json',
+                    },
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        alert('Error: ' + data.error);
+                        return;
+                    }
+                    // Update heart icon
+                    if (data.is_liked) {
+                        heartIcon.classList.add('text-danger');
+                    } else {
+                        heartIcon.classList.remove('text-danger');
+                    }
+                    // Update like count
+                    likeCountSpan.textContent = `(${data.like_count})`;
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while processing your request.');
+                });
+            });
+        });
+    });
+<script>
 {% endblock %}
 

@@ -20,8 +20,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.getenv('SECRET_KEY')
 
-STRIPE_PUBLIC_KEY = os.getenv('STRIPE_PUBLIC_KEY')
-STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
+STRIPE_PUBLIC_KEY = 'pk_test_ceE9AJ99mz5febdoTmcq5C38'
+STRIPE_SECRET_KEY = 'sk_test_Uw0pOrG2d2LwQT18Ielu6Gqk'
 
 # S3 Bucket credentials
 ACCESS_KEY_ID = os.getenv('ACCESS_KEY_ID')
@@ -29,7 +29,7 @@ SECRET_ACCESS_KEY = os.getenv('SECRET_ACCESS_KEY')
 BUCKET_NAME = os.getenv('BUCKET_NAME')
 FOLDER_NAME = os.getenv('FOLDER_NAME')
 
-MAP_API_KEY = os.getenv('MAP_API_KEY')
+MAP_API_KEY = 'AIzaSyAfBo6-cZlOpKGrD1ZYwISIGjYvhH_wPmk'
 
 EMAIL_BACKEND = os.getenv('EMAIL_BACKEND')
 EMAIL_HOST = os.getenv('EMAIL_HOST')
@@ -37,12 +37,13 @@ EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS')
 EMAIL_PORT = os.getenv('EMAIL_PORT')
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
-PROTOCALL = 'https'
-SITE_URL = 'https://dev.pickleit.app/user_side'
+PROTOCALL = 'http'
+# SITE_URL = 'https://dev.pickleit.app/user_side'
+SITE_URL = 'http://127.0.0.1:8000/user_side'
 CLUB_PERCENTAGE = 90
 ADMIN_PERCENTAGE_CLUB = 10
 DEBUG = True
-
+MEMBARSHIP = False
 
 ALLOWED_HOSTS = ["*"]
 
@@ -74,6 +75,11 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.sites',
+    # 'allauth',
+    # 'allauth.account',
+    # 'allauth.socialaccount',
+    # 'allauth.socialaccount.providers.google',
     'phonenumber_field',
     'rest_framework',
     'rest_framework_simplejwt',
@@ -87,8 +93,38 @@ INSTALLED_APPS = [
     'apps.store',
     'apps.courts',
     'apps.clubs',
-    'apps.user_side'
+    'apps.user_side',
 ]
+
+# SITE_ID = 1
+
+# AUTHENTICATION_BACKENDS = [
+#     'django.contrib.auth.backends.ModelBackend',
+#     'allauth.account.auth_backends.AuthenticationBackend',
+# ]
+
+# ACCOUNT_EMAIL_VERIFICATION = 'none'  # Adjust based on your needs
+# ACCOUNT_AUTHENTICATION_METHOD = 'email'
+# ACCOUNT_EMAIL_REQUIRED = True
+# ACCOUNT_USERNAME_REQUIRED = False
+# SOCIALACCOUNT_LOGIN_ON_GET = True
+
+# LOGIN_REDIRECT_URL = 'user_side:user_index'  # Adjust to your home page
+# ACCOUNT_LOGOUT_REDIRECT_URL = 'user_side:user_login'
+
+# # Google OAuth provider settings
+# SOCIALACCOUNT_PROVIDERS = {
+#     'google': {
+#         'SCOPE': [
+#             'profile',
+#             'email',
+#         ],
+#         'AUTH_PARAMS': {
+#             'access_type': 'online',
+#         }
+#     }
+# }
+
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -122,7 +158,7 @@ STATIC_URL = '/static/'
 STATICFILES_DIRS = [
     BASE_DIR / "static",
 ]
-
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 
 MEDIA_URL = '/media/'
@@ -175,16 +211,6 @@ CHANNEL_LAYERS = {
     },
 }
 
-# DATABASES = {
-#     "default": {
-#         "ENGINE": "django.db.backends.postgresql",
-#         "NAME": "python_db",
-#         "USER": "python_usr",
-#         "PASSWORD": "8gWQC5bAyKwiBSXH",
-#         "HOST": "127.0.0.1",
-#         "PORT": "5432",
-#     }
-# }
 
 DATABASES = {
     'default': {
@@ -223,7 +249,7 @@ AUTH_USER_MODEL = "user.User"
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-import os
+
 
 LOGGING = {
     'version': 1,
@@ -254,3 +280,4 @@ LOGGING = {
         },
     },
 }
+

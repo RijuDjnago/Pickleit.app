@@ -1,2 +1,2 @@
-# Pickleit.app
-This is basically a gaming app
+# PickleitDjango
+Create api, user side, admin panel

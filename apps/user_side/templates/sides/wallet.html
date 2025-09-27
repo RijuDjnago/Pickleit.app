@@ -4,13 +4,22 @@
 {% block content %}
 <div class="d-flex align-items-center justify-content-between mb-3">
     <h1 class="h3 m-0">Wallet</h1>
-    <a href="{% url 'user_side:add_fund' %}" class="btn btn-success">Add fund</a>
 </div>
 <!-- Wallet Balance Section -->
-<div class="card mb-4">
-    <div class="card-body text-center">
-        <h5 class="card-title">Wallet Balance</h5>
-        <h1 class="text-primary">${{ wallet_balance|floatformat:2 }}</h1>
+<div class="card wallet-tab">
+    <div class="card-body">
+        <div class="row">
+            <div class="col mt-0">
+                <h5 class="card-title text-white">Wallet Balance</h5>
+            </div>
+            <div class="col-auto">
+                <div class="stat text-primary">
+                    <i class="fa-solid fa-wallet"></i>
+                </div>
+            </div>
+        </div>
+        <h1 class="mt-1 mb-3 text-white">${{ wallet_balance|floatformat:2 }}</h1>
+        <a href="{% url 'user_side:add_fund' %}" class="btn btn-success add-fund-btn">Add fund</a>
     </div>
 </div>
 

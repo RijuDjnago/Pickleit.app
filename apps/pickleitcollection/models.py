@@ -8,7 +8,7 @@ from django.dispatch import receiver
 from django.db.models import Count, F
 from datetime import datetime
 
-# Create your models here.
+# Use tables 
 
 SCREEN_TYPE = (
     # ("Team Create", "Team Create"),
@@ -29,6 +29,12 @@ DURATION_TYPE = (
     ('Year', 'Year')
 )
 
+ADD_TYPE = (
+    ("Image", "Image"),
+    ("Script", "Script"),
+)
+
+
 class AdvertisementDurationRate(models.Model):
     duration = models.PositiveIntegerField()
     duration_type = models.CharField(max_length=10, choices=DURATION_TYPE, default="Days")
@@ -37,11 +43,6 @@ class AdvertisementDurationRate(models.Model):
     def __str__(self):
         return f"{self.duration} {self.duration_type} : ${self.rate}"
 
-
-ADD_TYPE = (
-    ("Image", "Image"),
-    ("Script", "Script"),
-)
 class Advertisement(models.Model):
     uuid = models.UUIDField(default=uuid.uuid4)
     secret_key = models.CharField(max_length=250, unique=True)
@@ -80,12 +81,40 @@ class Advertisement(models.Model):
     def __str__(self) :
         return f"{self.name} [{self.start_date} to {self.end_date}]"   
     
-    
+
+#### not used tables
+FACILITY_TYPE = (
+    ("Pickleball Facility", "Pickleball Facility"),
+    ("Sports Facility", "Sports Facility"),
+    ("Country Club", "Country Club"),
+    ("Neighborhood Courts", "Neighborhood Courts"),
+    ("Public Area", "Public Area"),
+    ("Other", "Other"),
+)
+
+COURT_TYPE = (
+    ("Outdoor Court Only","Outdoor Court Only"),
+    ("Indoor Court Only", "Indoor Court Only"),
+    ("Both Outdoor and Indoor","Both Outdoor and Indoor"),
+)
+
+MEMBERSHIP_TYPE = (
+    ("Open to Public","Open to Public"),
+    ("Members only", "Members only"),
+    ("Pay to Play", "Pay to Play"),
+)
+
+CHARGE_FOR = (
+    ("product_buy", "product_buy"),
+    ("for_advertisement", "for_advertisement"),
+)
+
 CHARGE_TYPE = (
     ("Organizer", "To Become an Organizer"),
     ("Sponsors", "To Become a Sponsors"),
     ("Ambassador", "To Become a Ambassador"),
 )
+
 class ChargeAmount(models.Model):
     uuid = models.UUIDField(default=uuid.uuid4)
     secret_key = models.CharField(max_length=250, unique=True)
@@ -112,10 +141,6 @@ class Notifications(models.Model):
         return f"{self.user.username} - Message : {self.message}$ - Status : {self.is_read}"
 
 
-
-
-################################################### NEW #################################################
-
 class AmbassadorsPost(models.Model):
     uuid = models.UUIDField(default=uuid.uuid4)
     secret_key = models.CharField(max_length=250, null=True, blank=True, unique=True)
@@ -126,11 +151,34 @@ class AmbassadorsPost(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(User,on_delete=models.SET_NULL, null=True, blank=True, related_name='postby')
     likes = models.ManyToManyField(User)
+    number_comment = models.IntegerField(default=0)
+    number_like = models.IntegerField(default=0)
+    tags = models.JSONField(default=dict)
 
     def __str__(self):
         return f'{self.post_text} - {self.created_by}'
 
-  
+class Tags(models.Model):
+    name = models.CharField(max_length=255, unique=True)
+    number_of_use = models.IntegerField(default=0)
+    
+class PostComment(models.Model):
+    post = models.ForeignKey(AmbassadorsPost, on_delete=models.CASCADE, related_name="reel_comment")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="commenting_user")
+    comment_text = models.TextField()
+    parent_comment = models.ForeignKey("PostComment", on_delete=models.CASCADE, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        if is_new:
+            AmbassadorsPost.objects.filter(pk=self.post.pk).update(number_comment=F('number_comment') + 1)
+
+    def delete(self, *args, **kwargs):
+        AmbassadorsPost.objects.filter(pk=self.post.pk).update(number_comment=F('number_comment') - 1)
+        super().delete(*args, **kwargs)
+
 class AmbassadorsDetails(models.Model):
     ambassador = models.ForeignKey(User,on_delete=models.SET_NULL, null=True, blank=True, related_name='ambassador')
     follower = models.ManyToManyField(User,related_name='ambassador_follower')
@@ -138,29 +186,6 @@ class AmbassadorsDetails(models.Model):
 
     def __str__(self):
         return f'{self.ambassador}'
-
-
-FACILITY_TYPE = (
-    ("Pickleball Facility", "Pickleball Facility"),
-    ("Sports Facility", "Sports Facility"),
-    ("Country Club", "Country Club"),
-    ("Neighborhood Courts", "Neighborhood Courts"),
-    ("Public Area", "Public Area"),
-    ("Other", "Other"),
-)
-
-COURT_TYPE = (
-    ("Outdoor Court Only","Outdoor Court Only"),
-    ("Indoor Court Only", "Indoor Court Only"),
-    ("Both Outdoor and Indoor","Both Outdoor and Indoor"),
-)
-
-MEMBERSHIP_TYPE = (
-    ("Open to Public","Open to Public"),
-    ("Members only", "Members only"),
-    ("Pay to Play", "Pay to Play"),
-)
-
 
 class AdvertiserFacility(models.Model):
     uuid = models.UUIDField(default=uuid.uuid4)
@@ -185,7 +210,6 @@ class AdvertiserFacility(models.Model):
     def __str__(self):
         return f"{self.facility_name} - {self.facility_type}"
     
-
 class FacilityImage(models.Model):
     facility = models.ForeignKey(AdvertiserFacility, on_delete=models.CASCADE, related_name='facility_image')
     image = models.ImageField(upload_to="Facility_image/")
@@ -193,28 +217,24 @@ class FacilityImage(models.Model):
     def __str__(self):
         return f"{self.facility.facility_name}"
 
-
-CHARGE_FOR = (
-    ("product_buy", "product_buy"),
-    ("for_advertisement", "for_advertisement"),
-)
-
+from apps.store.models import CustomerMerchandiseStoreProductBuy
 class PaymentDetails(models.Model):
-    uuid = models.UUIDField()
+    uuid = models.UUIDField(default=uuid.uuid4)
     secret_key = models.CharField(unique=True, max_length=250)
     payment_for = models.CharField(max_length=250, choices=CHARGE_FOR, null=True, blank=True)
-    var_chargeamount = models.IntegerField()
+    var_chargeamount = models.FloatField(null=True, blank=True)
     payment_for = models.CharField(max_length=250, blank=True, null=True)
     payment_for_id = models.TextField(blank=True, null=True)
     payment_by = models.CharField(max_length=250, blank=True, null=True)
-    payment_amount = models.IntegerField()
-    payment_status = models.BooleanField()
-    created_at = models.DateTimeField()
+    payment_amount = models.FloatField(null=True, blank=True)
+    payment_status = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
     chargeamount = models.ForeignKey(ChargeAmount, on_delete=models.CASCADE, blank=True, null=True)
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, blank=True, null=True)
     stripe_response = models.JSONField(blank=True, null=True)
     expires_at = models.DateTimeField(blank=True, null=True)
     payment_for_ad = models.ForeignKey(Advertisement, on_delete=models.CASCADE, blank=True, null=True)
+    payment_for_product = models.ManyToManyField(CustomerMerchandiseStoreProductBuy, blank=True)
 
     def __str__(self) :
         return f"{self.created_by.username} - Amount : {self.var_chargeamount}$ - Status : {self.payment_status}"

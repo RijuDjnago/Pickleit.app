@@ -13,7 +13,7 @@
 <div class="page-breadcrumb">
     <div class="row">
         <div class="col-12 d-flex no-block align-items-center">
-            <h4 class="page-title">View Player</h4>
+            <h4 class="page-title">View User</h4>
             <div class="ml-auto text-right">
                 <nav aria-label="breadcrumb">
                     <!-- Add breadcrumb navigation if needed -->
@@ -24,154 +24,61 @@
 </div>
 
 
-<div class="container-fluid mb-5">
-    <div class="row">
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-body">
-                <h5 class="card-title">Wallet Balance</h5>
-                <h3 class="text-success">${% if Wallet_details.Balance %}{{Wallet_details.Balance}}{% else %} 0{% endif %}</h3>
-                <hr />
-                <h6>Recent Transactions</h6>
-                <ul class="list-group">
-                    
-                    {% if transaction %}
-                        {% for trns in transaction %}
-                            <li class="list-group-item d-flex justify-content-between align-items-center">{{trns.transaction_type}} for {{trns.transaction_for}}{% if trns.transaction_type == "credit" %}<span class="badge bg-success">${{trns.amount}}</span>{% else %}<span class="badge bg-danger">${{trns.amount}}</span>{% endif %}</li>
-                        {% endfor %}
-                    {% else %}
-                    <p>No Transactions Record found</p>
-                    {% endif %}  
-                </ul>
-                
-                </div>
-            </div>
-            <div class="card mt-3">
-                <div class="card-body">
-                <h5 class="card-title">Subcription Details</h5>
-                <div style="max-height: 300px; overflow-y: auto">
-                    <table class="table">
-                        <thead>
-                          <tr>
-                            <th scope="col">Id</th>
-                            <th scope="col">User</th>
-                            <th scope="col">Plan</th>
-                            <th scope="col">Start Date</th>
-                            <th scope="col">End Date</th>
-                            <th scope="col">action</th>
-                          </tr>
-                        </thead>
-                        <tbody>  
-                        {% for plan in all_buy_plan %}
-                            <tr>
-                            <th>{{plan.id}}</th>
-                            <td>{{plan.user.first_name}} {{plan.user.last_name}}</td>
-                            <td>{{plan.plan.name}}</td>
-                            <td>{{plan.start_date}}</td>
-                            <td>{{plan.end_date}}</td>
-                            <td><a href="#">view</a></td>
-                            </tr>
-                        {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                </div>
-            </div>
-        </div>
+<div class="player-profile mb-5">
     
-        <!-- User Details Section (Right Side) -->
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-body d-flex align-items-center justify-content-between">
-                <div class="mr-3">
-                    <!-- Fixed-Size User Image -->
-                    <div
-                    style="
-                        width: 240px;
-                        height: 240px;
-                        background: #ccc;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                    "
-                    >
-                    
-                    {% if user.image %}
-                        <img src="{{user.image.url}}" alt="">
-                    {% else %}
-                        <span style="color: #666; font-size: 14px">No Image</span>
-                    {% endif %}
-                    </div>
-                </div>
-                <div>
-                    <h5 class="card-title">
-                        <strong>Name:</strong> {{ user.first_name|default:"Not defined" }} {{ user.last_name|default:"Not defined" }}
-                    </h5>
-                    <p class="card-text"><strong>Email:</strong> {{ user.email|default:"Not defined" }}</p>
-                    <p class="card-text"><strong>Phone:</strong> {{ user.phone|default:"Not defined" }}</p>
-                    <p class="card-text"><strong>Joined:</strong> {{ user.created_at|default:"Not defined" }}</p>
-                    <p class="card-text"><strong>Permanent Location:</strong> {{ user.permanent_location|default:"Not defined" }}</p>
-                    <p class="card-text"><strong>Bio:</strong> {{ user.bio|default:"Not defined" }}</p>
-                </div>
-                </div>
+    <div class="d-flex justify-content-end gap-2 mb-3">
+        <a href="{% url 'dashboard:player_list_' %}" class="btn btn-success text-white"><i class="fa fa-arrow-left"></i></a>
+        <a href="#" class="btn btn-info text-white" title='Under development'><i class="fa fa-comment"></i></a>
+        <a href="{% url 'dashboard:edit_player' user.id %}" class="btn btn-primary text-white"><i class="fa fa-edit"></i></a>
+        <!-- <a href="{% url 'dashboard:delete_player' user.id %}" class="btn btn-danger text-white"><i class="fa fa-trash"></i></a> -->
+        <a href="#" class="btn btn-secondary text-white" onclick="copyProfileLink()" title="Share Profile"><i class="fa fa-share-alt"></i></a>
+
+    </div>
+
+    <div class="pp-top" style="background: url('https://png.pngtree.com/background/20250514/original/pngtree-abstract-blue-network-picture-image_15918155.jpg') center center no-repeat;">
+        <div class="pp-content text-center">
+            <div class="pp-img">
+                <img src="{% if user.image %}{{ user.image.url }}{% else %}https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQADjfoADAlJPrsl_hiiOMeE-FBor-i6hEAVg&s{% endif %}" alt="Profile Image" class="rounded-circle" width="150" height="150">
             </div>
-            <div class="card mt-3">
-                <div class="card-body">
-                <h5 class="card-title">Teams</h5>
-                <div style="max-height: 300px; overflow-y: auto">
-                    <ul class="list-group">
-                    {% for team in all_team_data %}
-                        <li class="list-group-item d-flex align-items-center">
-                            <img src="/media/{{team.image}}" class="rounded-circle mr-2" alt="User" height="20px" width="20px"/>
-                            <span>{{team.name}}</span>
-                        </li>
-                    {% endfor %}
-                    </ul>
-                </div>
-                </div>
-            </div>
-            <div class="card mt-3">
-                <div class="card-body">
-                    <h5 class="card-title">🏆 Match History</h5>
-                    <div style="max-height: 300px; overflow-y: auto;">
-                        <!-- Match 1 -->
-                         
-                         {% for mhis in all_match_history %}
-                            <div class="border p-2 mb-2 rounded bg-light">
-                                <strong>🏅 {{mhis.team1.name}}</strong> 🆚  <strong>{{mhis.team2.name}}</strong>  
-                                <br>
-                                
-                                {% if not mhis.is_drow %}
-                                    {% if mhis.is_win %}
-                                    <span class="badge bg-success">Winner: {{mhis.winner.name|default:"Not defined"}}</span>
-                                    {% else %}
-                                    <span class="badge bg-danger">Winner: {{mhis.winner.name|default:"Not defined"}}</span>
-                                    {% endif %}
-                                {% else %}
-                                <span class="badge bg-warning">Winner: {{mhis.winner.name|default:"Not defined"}}</span>
-                                {% endif %}
-                            </div>    
-                                
-                         {% endfor %}
-                            
-                        
-                        <!-- Match 2 -->
-                        <div class="border p-2 mb-2 rounded bg-light">
-                            <strong>🏅 Team C</strong> (95) 🆚 (90) <strong>Team D</strong>  
-                            <span class="badge bg-success">Winner: Team C</span>
-                        </div>
-                        <!-- Match 3 -->
-                        <div class="border p-2 mb-2 rounded bg-light">
-                            <strong>🏅 Team E</strong> (110) 🆚 (105) <strong>Team F</strong>  
-                            <span class="badge bg-success">Winner: Team E</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <h4 class="mt-2 text-white font-weight-bold">{{ user.first_name }} {{ user.last_name }}</h4>
+            <p class="text-white font-weight-bold"><strong>Email:</strong> {{ user.email|default:"Not defined" }}</p>
+            <p class="text-white font-weight-bold"><strong>Phone:</strong> {{ user.phone|default:"Not defined" }}</p>
+            <p class="text-white font-weight-bold"><strong>Joined:</strong> {{ user.created_at|default:"Not defined" }}</p>
+            <p class="text-white font-weight-bold"><strong>Permanent Location:</strong> {{ user.permanent_location|default:"Not defined" }}</p>
+            <p class="text-white font-weight-bold"><strong>Bio:</strong> {{ user.bio|default:"Not defined" }}</p>
         </div>
     </div>
 
-</div>
-
-    
+    <div class="pop-btm text-center d-flex justify-content-around mt-3">
+        <div>
+            <h4>{{ total_posts }}</h4>
+            <p>Posts</p>
+        </div>
+        <div>
+            <h4>{{ followers }}</h4>
+            <p>Followers</p>
+        </div>
+        <div>
+            <h4>{{ followings }}</h4>
+            <p>Following</p>
+        </div>
+    </div>
+    {% include 'dashboard/components/player_wallet.html' %}
+    {% include 'dashboard/components/player_subscription.html' %}
+    {% include 'dashboard/components/player_teams.html' %}
+    {% include 'dashboard/components/player_match_history.html' %}
+    {% include 'dashboard/components/player_feed_list.html' %}
+</div> 
+<script>
+    function copyProfileLink() {
+        const dummy = document.createElement('input');
+        const url = window.location.href;  // Current full URL
+        document.body.appendChild(dummy);
+        dummy.value = url;
+        dummy.select();
+        document.execCommand('copy');
+        document.body.removeChild(dummy);
+        alert("Profile URL copied to clipboard!");
+    }
+</script>  
 {% endblock %}

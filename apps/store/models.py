@@ -6,6 +6,8 @@ from django.db.models.signals import post_save, post_delete, pre_save
 from django.dispatch import receiver
 from django.db.models import Count, F, Min
 from apps.pickleitcollection.models import *
+from django.core.exceptions import ValidationError
+from django.db.models.functions import Lower
 
 # Create your models here.
 
@@ -78,9 +80,13 @@ class MerchandiseStoreProduct(models.Model):
     specifications = models.TextField(null=True, blank=True)    
     leagues_for = models.ManyToManyField(Leagues, blank=True)
     is_love = models.ManyToManyField(User, blank=True)
-    rating = models.FloatField(null=True, blank=True,default=1)
+    rating = models.FloatField(null=True, blank=True,default=0)
     rating_count = models.PositiveIntegerField(default=0)
     advertisement_image = models.ImageField(upload_to='product/advertisement/images', null=True, blank=True)
+    has_single_spec = models.BooleanField(
+        default=False,
+        help_text="Check if this product requires only one specification"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(User,on_delete=models.SET_NULL, null=True, blank=True, related_name='productCreatedBy')
     
@@ -104,21 +110,24 @@ class MerchandiseStoreProduct(models.Model):
 class MerchandiseProductSpecification(models.Model):
     product = models.ForeignKey(MerchandiseStoreProduct, on_delete=models.CASCADE, related_name='specificProduct')
     size = models.CharField(max_length=5, null=True, blank=True)
+    color = models.CharField(max_length=5, null=True, blank=True)
     old_price = models.PositiveIntegerField(null=True, blank=True)
     current_price = models.PositiveIntegerField(null=True, blank=True)
     discount = models.FloatField(null=True, blank=True)
     total_product = models.PositiveIntegerField(null=True, blank=True)
     available_product = models.PositiveIntegerField(null=True, blank=True)
 
-    def save(self, *args, **kwargs):        
+    
+    def save(self, *args, **kwargs):    
         if self.total_product is not None and self.available_product is None:
             self.available_product = self.total_product
 
-        # Calculate discount if both old_price and current_price are provided
         if self.old_price and self.current_price:
-            self.discount = ((self.old_price - self.current_price) / self.old_price) * 100
+            self.discount = round(((self.old_price - self.current_price) / self.old_price) * 100, 2)
+        elif not self.old_price:
+            self.discount = 0
         else:
-            self.discount = None 
+            self.discount = None
 
         super().save(*args, **kwargs)
 
@@ -177,6 +186,7 @@ BUYING_STATUS = (
     ("CART", "CART"),
     ("BuyNow", "BUY NOW"),
     ("ORDER PLACED", "ORDER PLACED"),
+    ("SHIPPED", "SHIPPED"),
     ("CANCEL", "CANCEL"),
     ("DELIVERED", "DELIVERED"),
 )
@@ -191,6 +201,8 @@ class ProductDeliveryAddress(models.Model):
     country = models.CharField(max_length=255, null=True, blank=True)
     default_address = models.BooleanField(default=False)
     complete_address = models.TextField(null=True, blank=True,help_text="street, city, state, country, PIN-postal_code")
+    latitude = models.CharField(max_length=15, null=True, blank=True)
+    longitude = models.CharField(max_length=15, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(User,on_delete=models.SET_NULL, null=True, blank=True)
     
@@ -202,6 +214,22 @@ class ProductDeliveryAddress(models.Model):
         if self.street and self.city and self.state and self.postal_code and self.country:
             # Concatenate the address components to form the complete_address
             self.complete_address = f"{self.street}, {self.city}, {self.state}, {self.country}, PIN-{self.postal_code}"
+            full_address = self.complete_address.replace(" ", "+")
+            api_key = settings.MAP_API_KEY  # Store your API key in Django settings
+
+            url = f"https://maps.googleapis.com/maps/api/geocode/json?address={full_address}&key={api_key}"
+            try:
+                response = requests.get(url)
+                if response.status_code == 200:
+                    result = response.json()
+                    if result["status"] == "OK" and result["results"]:
+                        location = result["results"][0]["geometry"]["location"]
+                        self.latitude = str(location["lat"])
+                        self.longitude = str(location["lng"])
+            except Exception as e:
+                # Optional: Log the exception or handle error
+                print(f"Geocoding error: {e}")
+
         super().save(*args, **kwargs)
 
 
@@ -215,6 +243,7 @@ class CustomerMerchandiseStoreProductBuy(models.Model):
     total_price = models.PositiveBigIntegerField()
     status = models.CharField(choices=BUYING_STATUS, max_length=250, null=True, blank=True)
     size = models.CharField(max_length=250, null=True, blank=True)
+    color = models.CharField(max_length=5, null=True, blank=True)
     is_paid = models.BooleanField(default=False)
     is_delivered = models.BooleanField(default=False)
     delivery_address_main = models.ForeignKey(ProductDeliveryAddress,on_delete=models.SET_NULL, null=True, blank=True)

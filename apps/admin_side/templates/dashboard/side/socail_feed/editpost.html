@@ -3,7 +3,6 @@
 {% load static %}
 
 {% block extra_css %}
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <style>
         .edit-container {
             max-width: 800px;
@@ -39,12 +38,12 @@
 <div class="page-breadcrumb">
     <div class="row">
         <div class="col-12 d-flex no-block align-items-center">
-            <h4 class="page-title">Edit Post</h4>
+            <h4 class="page-title">Edit Post Form</h4>
             <div class="ml-auto text-right">
                 <nav aria-label="breadcrumb">
                     <div class="d-flex flex-row-reverse m-4">
-                        <a href="{% url 'dashboard:social_feed_list' %}" class="btn btn-secondary font-weight-bold ml-2">Back to list</a>
-                        <a href="{% url 'dashboard:social_feed_view' post_id=post.id %}" class="btn btn-warning font-weight-bold ml-2">Back to View</a>
+                        <a href="{% url 'dashboard:social_feed_list' %}" class="btn btn-secondary font-weight-bold ml-2"><i class="fa fa-arrow-left"></i></a>
+                        <a href="{% url 'dashboard:social_feed_view' post_id=post.id %}" class="btn btn-warning font-weight-bold ml-2"><i class="fa fa-eye"></i></a>
                     </div> 
                 </nav>
             </div>
@@ -52,8 +51,8 @@
     </div>
 </div>
 
-<div class="container-fluid edit-container mt-3 mb-5">
-    <div class="card shadow-sm p-4">
+<div class="mb-5">
+    <div class="nw-form">
         
         <form method="POST" enctype="multipart/form-data">
             {% csrf_token %}
@@ -69,17 +68,36 @@
                 <label class="form-label fw-bold">Existing Files</label>
                 <div class="row">
                     {% for file in files %}
-                        <div class="col-md-4 mb-3 position-relative file-preview">
+                        <div class="col-md-3 mb-3 text-center" style="display: flex; flex-direction: column; align-items: center;">
                             {% if file.file.url|slice:"-3:" == "jpg" or file.file.url|slice:"-3:" == "png" or file.file.url|slice:"-4:" == "jpeg" %}
-                                <img src="{{ file.file.url }}" class="img-fluid rounded">
+                                <img src="{{ file.file.url }}" style="max-width: 100px; max-height: 100px; object-fit: cover; border-radius: 5px;">
                             {% else %}
-                                <a href="{{ file.file.url }}" target="_blank" class="btn btn-outline-primary w-100">Download File</a>
+                                <a href="{{ file.file.url }}" target="_blank" class="btn btn-outline-primary btn-sm" style="width: 100px;">Download</a>
                             {% endif %}
-                            <a href="{% url 'dashboard:delete_file' file.id %}" class="btn btn-danger">&times;</a>
+                            <a href="{% url 'dashboard:delete_file' file.id %}" 
+                   style="
+                       position: absolute;
+                       top: 0;
+                       right: 0;
+                       background-color: red;
+                       color: white;
+                       border: none;
+                       border-radius: 50%;
+                       width: 20px;
+                       height: 20px;
+                       text-align: center;
+                       line-height: 18px;
+                       font-size: 14px;
+                       text-decoration: none;
+                   "
+                  >
+                    &times;
+                </a>
                         </div>
                     {% endfor %}
                 </div>
             </div>
+
 
             <!-- Upload New Files -->
             <div class="mb-4">
@@ -88,8 +106,9 @@
             </div>
 
             <!-- Submit Button -->
-            <div class="d-flex justify-content-end">
-                <button type="submit" class="btn btn-primary px-4">Update Post</button>
+            <div class="d-flex justify-content-center align-items-center gap-2">
+                <a href="{% url 'dashboard:social_feed_list' %}" class="btn btn-secondary font-weight-bold ml-2 mx-3">Cancel</a>
+                <button type="submit" class="btn btn-primary">Submit</button>
             </div>
         </form>
     </div>

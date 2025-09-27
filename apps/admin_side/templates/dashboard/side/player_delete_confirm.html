@@ -38,11 +38,11 @@
     <div class="container-fluid row justify-content-center align-items-center">
         <div class="card col-6 p-5">
             <div class="text-center">
-            <h4>Do you want to delete player "{{ player.player_full_name }}"?</h4>
+            <h4>Do you want to delete player "{{ player.first_name }} {{player.last_name}}"?</h4>
             <form class="form-horizontal" method="post" enctype="multipart/form-data">
                 {% csrf_token %}
                 <button type="submit" class="btn btn-danger text-white font-weight-bold mt-4">Yes</button>
-                <a href="{% url "dashboard:player_list_" %}" class="btn btn-secondary mt-4">No</a>
+                <a href="{% url 'dashboard:player_view' player.id %}" class="btn btn-secondary mt-4">No</a>
             </form>
         </div>            
         </div>

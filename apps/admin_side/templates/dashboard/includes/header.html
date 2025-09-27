@@ -71,8 +71,12 @@
     .notification-text {
         flex-grow: 1;
     }
-
+    
+    .unread-notification {
+        background-color: #f1f1f1 !important;
+    }
 </style>
+
 
  <header class="topbar" data-navbarbg="skin5">
     <nav class="navbar fixed-top top-navbar navbar-expand-md navbar-dark">
@@ -170,7 +174,7 @@
     });
     
 </script>
-<script>
+{% comment %} <script>
     document.addEventListener("DOMContentLoaded", function () {
         const roomName = "user_1";  // Replace dynamically
         const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
@@ -281,7 +285,7 @@
         });
 
         function markNotificationsAsRead(notificationIds) {
-            fetch("https://pickleit.app/admin/read_notification/", {
+            fetch(`/admin/read_notification/`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -307,4 +311,170 @@
 
 
 
-</script>     
+</script>      {% endcomment %}
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const roomName = "user_1";  // Replace dynamically
+        const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
+        const wsUrl = `${wsScheme}://${window.location.host}/ws/notify/${roomName}/`;
+
+        const notificationDropdown = document.getElementById("notificationDropdown");
+        const notificationList = document.getElementById("notificationList");
+        const notificationCount = document.getElementById("notificationCount");
+
+        let unreadNotificationIds = [];
+
+        const socket = new WebSocket(wsUrl);
+
+        socket.onopen = function () {
+            console.log("✅ WebSocket Connected.");
+        };
+
+        socket.onmessage = function (event) {
+            const data = JSON.parse(event.data);
+            console.log("🔔 Notification received:", data);
+
+            if (data.message === "Get Notification") {
+                updateNotifications(data.all_notifications, data.unread_noti_count);
+            }
+        };
+
+        socket.onclose = function () {
+            console.warn("⚠️ WebSocket Closed. Reconnecting in 5 seconds...");
+            setTimeout(() => window.location.reload(), 5000);
+        };
+
+        socket.onerror = function (error) {
+            console.error("❌ WebSocket Error:", error);
+        };
+
+        function updateNotifications(notifications, unreadCount) {
+            notificationList.innerHTML = "";
+            unreadNotificationIds = [];
+
+            notifications.forEach(notification => {
+                const notificationItem = document.createElement("a");
+                notificationItem.href = "#";
+                notificationItem.classList.add("dropdown-item", "d-flex", "align-items-center", "notification-item");
+
+                const iconWrapper = document.createElement("div");
+                iconWrapper.classList.add("notification-icon", "bg-primary", "text-white");
+
+                const icon = document.createElement("i");
+                icon.classList.add("fas", "fa-bell");
+                iconWrapper.appendChild(icon);
+
+                const textWrapper = document.createElement("div");
+                textWrapper.classList.add("notification-text", "ms-2");
+
+                const title = document.createElement("span");
+                title.classList.add("fw-bold");
+                title.textContent = notification.titel || "New Notification";
+
+                const message = document.createElement("small");
+                message.classList.add("d-block", "text-muted");
+                message.innerHTML = breakText(notification.text_message, 30);
+
+                const timestamp = document.createElement("small");
+                timestamp.classList.add("d-block", "text-muted");
+                timestamp.textContent = formatTimestamp(notification.created_at);
+
+                textWrapper.appendChild(title);
+                textWrapper.appendChild(message);
+                textWrapper.appendChild(timestamp);
+
+                notificationItem.appendChild(iconWrapper);
+                notificationItem.appendChild(textWrapper);
+                notificationList.appendChild(notificationItem);
+
+                if (!notification.is_read) {
+                    notificationItem.classList.add("unread-notification");
+                    unreadNotificationIds.push(notification.id);
+
+                    notificationItem.addEventListener("click", function (e) {
+                        e.preventDefault();
+                        markSingleNotificationAsRead(notification.id, notificationItem);
+                    });
+                }
+            });
+
+            updateNotificationCounter();
+        }
+
+        function markSingleNotificationAsRead(notificationId, element) {
+            fetch(`/admin/read_notification/`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": getCSRFToken(),
+                },
+                body: JSON.stringify({ unread_notification_ids: [notificationId] }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log("✅ Notification marked as read:", data);
+                element.classList.remove("unread-notification");
+                unreadNotificationIds = unreadNotificationIds.filter(id => id !== notificationId);
+                updateNotificationCounter();
+            })
+            .catch(error => {
+                console.error("❌ Error marking notification as read:", error);
+            });
+        }
+
+        function updateNotificationCounter() {
+            if (unreadNotificationIds.length > 0) {
+                notificationCount.textContent = unreadNotificationIds.length;
+                notificationCount.style.display = "block";
+            } else {
+                notificationCount.style.display = "none";
+            }
+        }
+
+        function breakText(text, length) {
+            if (!text) return "No message available";
+            return text.replace(new RegExp(`(.{1,${length}})`, "g"), "$1<br>");
+        }
+
+        function formatTimestamp(timestamp) {
+            if (!timestamp) return "Unknown time";
+            const date = new Date(timestamp);
+            return date.toLocaleString();
+        }
+
+        // Mark all unread as read when dropdown clicked
+        notificationDropdown.addEventListener("click", function () {
+            if (unreadNotificationIds.length > 0) {
+                markNotificationsAsRead(unreadNotificationIds);
+            }
+        });
+
+        function markNotificationsAsRead(notificationIds) {
+            fetch(`/admin/read_notification/`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": getCSRFToken(),
+                },
+                body: JSON.stringify({ unread_notification_ids: notificationIds }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log("✅ All notifications marked as read:", data);
+                document.querySelectorAll(".unread-notification").forEach(el => {
+                    el.classList.remove("unread-notification");
+                });
+                unreadNotificationIds = [];
+                updateNotificationCounter();
+            })
+            .catch(error => console.error("❌ Error marking all notifications as read:", error));
+        }
+
+        function getCSRFToken() {
+            return document.cookie.split("; ")
+                .find(row => row.startsWith("csrftoken"))
+                ?.split("=")[1] || "";
+        }
+    });
+</script>

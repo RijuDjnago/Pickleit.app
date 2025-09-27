@@ -29,5 +29,29 @@ class ClubAdmin(admin.ModelAdmin):
 
 admin.site.register(ClubPackage)
 admin.site.register(ClubRating)
-admin.site.register(BookClub)
+@admin.register(BookClub)
+class BookClubAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'package', 'date', 'price', 'status', 'qr_data', 'apply_date')
+    list_filter = ('status', 'package__club__name', 'date', 'apply_date')
+    search_fields = ('user__username', 'package__club__name', 'qr_data')
+    readonly_fields = ('qr_data', 'apply_date')  # Make QR data readonly
+    ordering = ('-apply_date',)
+
+    fieldsets = (
+        (None, {
+            'fields': (
+                'user',
+                'package',
+                'date',
+                'price',
+                'status',
+                'qr_data',  # Show QR data here
+                'apply_date',
+            )
+        }),
+    )
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.select_related('user', 'package', 'package__club')
 admin.site.register(JoinClub)

@@ -3,8 +3,8 @@
 
 {% block content %}
 <div class="container mt-4">
-    <div class="card shadow-lg p-4">
-        <h3 class="text-center mb-4">Add a New Court</h3>
+    <h3 class="text-center mb-4 text-center">Add a New Court</h3>
+    <div class="nw-form">
         <form id="addCourtForm" method="POST" enctype="multipart/form-data" action="{% url 'user_side:add_my_court' %}">
             {% csrf_token %}
 

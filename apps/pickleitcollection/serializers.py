@@ -2,9 +2,11 @@ from rest_framework import serializers
 from .models import *
 
 class AdvertisementSerializer(serializers.ModelSerializer):
+    image = serializers.SerializerMethodField()
     created_by_first_name = serializers.CharField(source='created_by.first_name', read_only=True)
     created_by_last_name = serializers.CharField(source='created_by.last_name', read_only=True)
     days_left = serializers.SerializerMethodField()
+    admin_approve_status = serializers.SerializerMethodField()
 
     class Meta:
         model = Advertisement
@@ -15,14 +17,38 @@ class AdvertisementSerializer(serializers.ModelSerializer):
             "view_count"
         ]
 
+    def get_image(self, obj):
+        # obj.image.url is already the relative path, e.g. "/media/…"
+        return obj.image.url if obj.image else None
+
     def get_days_left(self, obj):
         if obj.end_date:
-            today = datetime.now().date()
-            end_date = obj.end_date.date()
-            days_remaining = (end_date - today).days
-            return max(days_remaining, 0)  # Ensures it doesn't return negative values
+            try:
+                today = datetime.now().date()
+                end_date = obj.end_date.date() if isinstance(obj.end_date, datetime) else obj.end_date
+                days_remaining = (end_date - today).days
+                return max(days_remaining, 0)  # Ensures it doesn't return negative values
+            except (TypeError, AttributeError):
+                return None
         return None
 
+    def get_admin_approve_status(self, obj):
+        """Dynamically determine admin_approve_status based on conditions."""
+        current_status = obj.admin_approve_status
+        if current_status == "Pending":
+            return "Approved"
+        elif current_status == "Rejected":
+            return "Rejected"
+        elif current_status == "Approved" and obj.approved_by_admin:
+            try:
+                today = datetime.now().date()
+                end_date = obj.end_date.date() if isinstance(obj.end_date, datetime) else obj.end_date
+                return "Renew" if end_date < today else "Approved"
+            except (TypeError, AttributeError):
+                return "Approved"  # Fallback to Approved if date handling fails
+        return current_status
+    
+    
 class FacilityImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = FacilityImage

@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-3">
+    <h3>Select Delivery Address</h3>
+
+    {% if addresses %}
+        <form method="post" >
+            {% csrf_token %}
+            {% for address in addresses %}
+                <div class="card p-4 mb-2 mt-3">
+                    <label>
+                        <input type="radio" name="selected_address" value="{{ address.id }}" {% if address.default_address %}checked{% endif %}>
+                        {{ address.complete_address }}
+                    </label>
+                </div>
+            {% endfor %}
+            <input type="hidden" name="grand_total" value="{{ grand_total }}">
+            <div class="text-right mt-3">
+                <button type="submit" class="btn btn-primary">Continue</button>
+            </div>
+        </form>
+    {% else %}
+        {% include 'dashboard/not_found.html' %}
+        <div class="text-center">
+            <button class="btn btn-success" data-toggle="modal" data-target="#addAddressModal">Add Address</button>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Modal for Adding Address -->
+<div class="modal fade" id="addAddressModal" tabindex="-1" role="dialog" aria-labelledby="addAddressModalLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <form id="addAddressForm" method="POST" action="{% url 'dashboard:add_address_ajax' %}">
+        {% csrf_token %}
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Address</h5>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="text" name="street" placeholder="Street" class="form-control mb-2" required>
+                <input type="text" name="city" placeholder="City" class="form-control mb-2" required>
+                <input type="text" name="state" placeholder="State" class="form-control mb-2" required>
+                <input type="text" name="postal_code" placeholder="Postal Code" class="form-control mb-2" required>
+                <input type="text" name="country" placeholder="Country" class="form-control mb-2" required>
+            </div>
+            <div class="modal-footer">
+                <button type="submit" class="btn btn-primary">Add Address</button>
+            </div>
+        </div>
+    </form>
+  </div>
+</div>
+
+<script>
+document.getElementById('addAddressForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    let form = this;
+
+    fetch(form.action, {
+        method: 'POST',
+        body: new FormData(form),
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    }).then(response => response.json())
+      .then(data => {
+          if (data.success) {
+              location.reload();
+          } else {
+              alert(data.message || 'Failed to add address');
+          }
+      });
+});
+</script>
+{% endblock %}

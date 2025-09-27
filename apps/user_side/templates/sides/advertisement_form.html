@@ -1,71 +1,75 @@
 {% extends 'base/base_user.html' %}
 {% block content %}
 <div class="container mt-4">
-    <h2 class="text-center">Create an Advertisement 📢</h2>
-    <form id="adForm" method="POST" enctype="multipart/form-data">
-        {% csrf_token %}
+    <h2 class="text-center mb-3">Create an Advertisement</h2>
+    <div class="nw-form">
+        <form id="adForm" method="POST" enctype="multipart/form-data">
+            {% csrf_token %}
 
-        <!-- Advertisement Name -->
-        <div class="mb-3">
-            <label class="form-label">Ad Name</label>
-            <input type="text" class="form-control" name="name" required>
-        </div>
+            <!-- Advertisement Name -->
+            <div class="mb-3">
+                <label class="form-label">Ad Name</label>
+                <input type="text" class="form-control" name="name" required>
+            </div>
 
-        <!-- Select Duration -->
-        <div class="mb-3">
-            <label class="form-label">Duration</label>
-            <select class="form-control" name="duration" id="durationSelect" required>
-                <option value="">Select Duration</option>
-                {% for duration in durations %}
-                    <option value="{{ duration.id }}" data-rate="{{ duration.rate }}">
-                        {{ duration.duration }} {{ duration.duration_type }} - ${{ duration.rate }}
-                    </option>
-                {% endfor %}
-            </select>
-        </div>
+            <!-- Select Duration -->
+            <div class="mb-3">
+                <label class="form-label">Duration</label>
+                <select class="form-control" name="duration" id="durationSelect" required>
+                    <option value="">Select Duration</option>
+                    {% for duration in durations %}
+                        <option value="{{ duration.id }}" data-rate="{{ duration.rate }}">
+                            {{ duration.duration }} {{ duration.duration_type }} - ${{ duration.rate }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
 
-        <!-- Image Upload -->
-        <div class="mb-3" id="imageUploadDiv">
-            <label class="form-label">Upload Image</label>
-            <input type="file" class="form-control" name="image">
-        </div>
+            <!-- Image Upload -->
+            <div class="mb-3" id="imageUploadDiv">
+                <label class="form-label">Upload Image</label>
+                <input type="file" class="form-control" name="image">
+            </div>
 
-        <!-- Script Text -->
-        <div class="mb-3 d-none" id="scriptTextDiv">
-            <label class="form-label">Script Text</label>
-            <textarea class="form-control" name="script_text"></textarea>
-        </div>
+            <!-- Script Text -->
+            <div class="mb-3 d-none" id="scriptTextDiv">
+                <label class="form-label">Script Text</label>
+                <textarea class="form-control" name="script_text"></textarea>
+            </div>
 
-        <div class="mb-3">
-            <label class="form-label">URL</label>
-            <input type="text" class="form-control" name="url">
-        </div>
+            <div class="mb-3">
+                <label class="form-label">URL</label>
+                <input type="text" class="form-control" name="url">
+            </div>
 
-        <!-- Company Name -->
-        <div class="mb-3">
-            <label class="form-label">Company Name</label>
-            <input type="text" class="form-control" name="company_name">
-        </div>
-        <div class="mb-3">
-            <label class="form-label">Company Website</label>
-            <input type="text" class="form-control" name="company_website">
-        </div>
+            <!-- Company Name -->
+            <div class="mb-3">
+                <label class="form-label">Company Name</label>
+                <input type="text" class="form-control" name="company_name">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Company Website</label>
+                <input type="text" class="form-control" name="company_website">
+            </div>
 
-        <div class="mb-3">
-            <label class="form-label" for="description">Description</label>
-            <textarea class="form-control" name="description" id="description"></textarea>
-        </div>
+            <div class="mb-3">
+                <label class="form-label" for="description">Description</label>
+                <textarea class="form-control" name="description" id="description"></textarea>
+            </div>
 
-        <div class="mb-3">
-            <label class="form-label">Start Date</label>
-            <input type="date" class="form-control" name="start_date">
-        </div>
+            <div class="mb-3">
+                <label class="form-label">Start Date</label>
+                <input type="date" class="form-control" name="start_date">
+            </div>
 
-        <!-- Submit Button -->
-        <button type="button" class="btn btn-primary w-100" data-bs-toggle="modal" data-bs-target="#paymentModal" id="submitBtn">
-            Submit & Proceed to Payment
-        </button>
-    </form>
+            <div class="text-center">
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#paymentModal" id="submitBtn">
+                    Submit & Proceed to Payment
+                </button>
+            </div>
+        </form>
+    </div>
+
 </div>
 
 <!-- Payment Modal -->

@@ -13,7 +13,7 @@
     <div class="page-breadcrumb">
         <div class="row">
             <div class="col-12 d-flex no-block align-items-center">
-                <h4 class="page-title">Edit User Form</h4>
+                <h4 class="page-title">Edit Admin Profile</h4>
                 <div class="ml-auto text-right">
                     <nav aria-label="breadcrumb">
                         {% if message %}
@@ -89,42 +89,12 @@
                                 <img src="{{ user.image.url }}" alt="User Image" width="200">
                             {% endif %}
                         </div>
-                    </div>
-                    <div class="form-group row">
-                        <label class="col-sm-3 text-right control-label col-form-label">Responsibilities:</label>
-                        <div class="col-sm-9">
-                            <div class="form-check">
-                                <input type="checkbox" id="is_admin" name="responsibilities" value="is_admin" class="form-check-input"{% if user.is_admin == True %} checked {% endif %}>
-                                <label for="is_admin" class="form-check-label">Is Admin</label>
-                            </div>
-                            <div class="form-check">
-                                <input type="checkbox" id="is_organizer" name="responsibilities" value="is_organizer" class="form-check-input"{% if user.is_organizer == True %} checked {% endif %}>
-                                <label for="is_organizer" class="form-check-label">Is Organizer</label>
-                            </div>
-                            <div class="form-check">
-                                <input type="checkbox" id="is_sponsor" name="responsibilities" value="is_sponsor" class="form-check-input"{% if user.is_sponsor == True %} checked {% endif %}>
-                                <label for="is_sponsor" class="form-check-label">Is Sponsor</label>
-                            </div>
-                            <div class="form-check">
-                                <input type="checkbox" id="is_ambassador" name="responsibilities" value="is_ambassador" class="form-check-input"{% if user.is_ambassador == True %} checked {% endif %}>
-                                <label for="is_ambassador" class="form-check-label">Is Ambassador</label>
-                            </div>
-                        </div>
-                    </div>  
-                    <div class="form-group row">
-                        <label class="col-sm-3 text-right control-label col-form-label">Verified:</label>
-                        <div class="col-sm-9">
-                            <div class="form-check mt-2">
-                                <input type="checkbox" id="is_verified" name="is_verified" value="is_verified" class="form-check-input"{% if user.is_verified == True %} checked {% endif %}>
-                                <label for="is_verified" class="form-check-label">Is Verified</label>
-                            </div>
-                        </div>
-                    </div>                   
+                    </div>                                       
                 </div>
                 <div class="border-top">
                     <div class="card-body text-center mt-5">
                         <button type="submit" class="btn btn-primary">Submit</button>
-                        <a href="{% url "dashboard:user_list" filter_by='all' %}" class="btn btn-secondary">Cancel</a>
+                        <a href="{% url 'dashboard:admin_profile' %}" class="btn btn-secondary">Cancel</a>
                     </div>
                 </div>
             </form>            

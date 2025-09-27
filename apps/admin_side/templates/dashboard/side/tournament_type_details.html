@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% load i18n %}
 {% load static %}
+{% load custom_tags %}
 
-
-{% block extra_style %}
+{% block extra_css %}
 
 <style>
   .team-name {
@@ -40,9 +40,6 @@
           max-width: 100%;
       }
   }
-</style>
-<style>
-    @import url(https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.1/css/all.min.css);
     .main_winner_wrapper{
         position: relative;
     }
@@ -54,21 +51,28 @@
         object-position: top;
     }
     .crown_add .img-thumbnail{
-        border-color: #FFD700;
-        /* height: 100%; */
-        border-width: 6px;
+        border-color: #212121;
+        border-width: 4px;
+        border-radius: 50%;
     }
 </style>
-{% endblock extra_style %}
+{% endblock extra_css %}
 
 {% block page_title %}
     Tournament
 {% endblock %}
 
 {% block content %}
-    <div class="container-fluid my-4 mt-4">
+    <div class="">
 
-      
+        {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"><i class='fa fa-times'></i></button>
+            </div>
+        {% endfor %}
+        {% endif %}
         
         {% if play_details_update %}
         <div class="alert alert-danger alert-dismissible fade show mt-4 m-4" role="alert">
@@ -81,91 +85,193 @@
       <div class="card mb-4">
         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
             <!-- League Title -->
-            <h3 class="mb-0">{{ league_details.name }} {{league_details.is_complete}}</h3>
+            <h5 class="mb-0">{{ league_details.name }}</h5>
             
             <!-- Buttons on the Right -->
             <div>
+                {% if is_join %}
+                <a href="{% url 'dashboard:join_team_event' league_details.id %}" class="btn btn-success btn-sm">Register Team</a>
+                {% else %}
+                {% endif %}
                 
                 {% if matches %}
                 {% else %}
                     {% if play_details_update %}
-                    <a type="button" style="color: black;" class="btn btn-light btn-sm mx-1" data-toggle="tooltip" data-placement="top" title="First set the Play types details for this tournament">Start Turnamnet</a>
+                    <a type="button" style="color: black;" class="btn btn-light btn-sm mx-1" data-toggle="tooltip" data-placement="top" title="First set the Play types details for this tournament">Start Tournament</a>
                     {% else %}
-                    <a href="{% url 'dashboard:hit_start_tournamnet' league_details.id %}" class="btn btn-light btn-sm mx-1">Start Turnamnet</a>
+                    <button type="button"
+                            class="btn btn-light btn-sm mx-1"
+                            data-bs-toggle="modal"
+                            data-bs-target="#startTournamentModal"
+                            data-league-id="{{ league_details.id }}">
+                        Start Tournament
+                    </button>
+                    <div class="modal fade" id="startTournamentModal" tabindex="-1" aria-labelledby="startTournamentModalLabel" aria-hidden="true">
+                        <div class="modal-dialog modal-dialog-centered">
+                            <div class="modal-content text-dark">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Confirm Start</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"><i class="fa fa-times"></i></button>
+                                </div>
+                                <div class="modal-body">
+                                    Are you sure you want to start the tournament?
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                    <a id="confirmStartBtn" class="btn btn-primary">Yes, Start</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     {% endif %}
 
                 {% endif %}
                 <a href="/admin/edit_tournament/{{league_details.id}}/" class="btn btn-light btn-sm mx-1"><i class="fa-solid fa-file-pen"></i></a>
-                <a href="#" class="btn btn-light btn-sm mx-1"><i class="fa-regular fa-trash-can"></i></a>
+                {% comment %} <a href="{% url 'dashboard:delete_tournament' league_details.id %}" class="btn btn-light btn-sm mx-1"><i class="fa-regular fa-trash-can"></i></a> {% endcomment %}
+                <a href="javascript:void(0);" 
+                    class="btn btn-light btn-sm mx-1" 
+                    data-bs-toggle="modal" 
+                    data-bs-target="#deleteModal" 
+                    data-league-id="{{ league_details.id }}"
+                    data-delete-url="{% url 'dashboard:delete_tournament' league_details.id %}">
+                    <i class="fa-regular fa-trash-can"></i>
+                </a>
+                <!-- Delete Confirmation Modal -->
+                <div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content text-dark">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="deleteModalLabel">Confirm Delete</h5>
+                            <button type="button" class="btn" data-bs-dismiss="modal" aria-label="Close">
+                                <i class="fa fa-times"></i>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            Are you sure you want to delete this tournament?
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <a href="#" class="btn btn-danger" id="confirmDeleteBtn">Confirm</a>
+                        </div>
+                        </div>
+                    </div>
+                </div>
+                <script>
+                    document.addEventListener('DOMContentLoaded', function () {
+                        var deleteModal = document.getElementById('deleteModal');
+                        var confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+
+                        deleteModal.addEventListener('show.bs.modal', function (event) {
+                            var button = event.relatedTarget;
+                            var deleteUrl = button.getAttribute('data-delete-url');
+                            confirmDeleteBtn.setAttribute('href', deleteUrl);
+                        });
+                    });
+                </script>
             </div>
         </div>
-          <div class="card-body">
-              <div class="row">
-                  <div class="col-8">
-                      <p>Player Type: <span id="player-type">{{league_details.team_type.name}}</span></p>
-                      <p>Registration Fee: $<span id="register-fee">{{league_details.registration_fee}}</span></p>
-                      <p>winner:-{{league_details.winner_team.name}}</p>
-                      <p>
-                      {% if not matches %}
-                      <button class="btn btn-light btn-sm mx-1">Register Team</button>
-                      {% else %}
-                      Matches are full. Will playing in proper time.
-                      {% endif %}
-                        </p>
-                    <p>joined Team:- {{teams|length}}</p>
-                    <p>Max join Team:- {{league_details.max_number_team}}</p>
-                      <!-- <div class="progress">
-                          <div 
-                              class="progress-bar" 
-                              role="progressbar" 
-                              style="width: 80%" 
-                              aria-valuenow="80" 
-                              aria-valuemin="0" 
-                              aria-valuemax="100">
-                              
-                          </div>
-                      </div> -->
-                  </div>
-                  <div class="col-4">
-                      <img src="/media/{{league_details.image}}" alt="TRY" class="img-thumbnail">
-                  </div>
-              </div>
+          <div class="card-body d-flex align-items-center gap-3">
+            <div class="tournament-img">
+                <img src="/media/{{league_details.image}}" alt="TRY" class="img-thumbnail">
+            </div>
+            <div class="tournament-details">
+                <div class="sgl-info d-flex align-items-center gap-3 mb-2">
+                    <h6 class="mb-0">Player Type:</h6>
+                    <p class="mb-0"><strong><span id="player-type">{{league_details.team_type.name}}</span></strong></p>
+                </div>
+                <div class="sgl-info d-flex align-items-center gap-3 mb-2">
+                    <h6 class="mb-0">Registration Fee:</h6>
+                    <p class="mb-0"><strong>$<span id="register-fee">{{league_details.registration_fee}}</span></strong></p>
+                </div>
+                <div class="sgl-info d-flex align-items-center gap-3 mb-2">
+                    <h6 class="mb-0">Winner:</h6>
+                    <p class="mb-0"><strong>{{league_details.winner_team.name}}</strong></p>
+                </div>
+                
+                <div class="sgl-info d-flex align-items-center gap-3 mb-2">
+                    <h6 class="mb-0">Joined Team:</h6>
+                    <p class="mb-0"><strong>{{teams|length}}</strong></p>
+                </div>
+                <div class="sgl-info d-flex align-items-center gap-3 mb-2">
+                    <h6 class="mb-0">Max join Team:</h6>
+                    <p class="mb-0"><strong>{{league_details.max_number_team}}</strong></p>
+                </div>
+                <!-- <div class="progress">
+                    <div 
+                        class="progress-bar" 
+                        role="progressbar" 
+                        style="width: 80%" 
+                        aria-valuenow="80" 
+                        aria-valuemin="0" 
+                        aria-valuemax="100">                        
+                    </div>
+                </div> -->
+            </div>
           </div>
       </div>
 
       <!-- Join Teams Section -->
       <div class="card mb-4">
-          <div class="card-header bg-secondary text-white">
-              Join Teams
+          <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+             <h5 class="mb-0">Joined Teams</h5>              
           </div>
           <div class="card-body">
               <div class="row justify-content-center" style="gap: 15px;">
                 
                 {% for team in teams %}
-                <div class="col-md-2 text-center">
+                <div class="jt-block position-relative">
+                    {% if is_unregister %}
+                        <button style="z-index: 1000; display: block;"
+                            class="btn btn-sm btn-danger position-absolute top-0 end-0 m-1 open-remove-modal"
+                            data-bs-toggle="modal"
+                            data-bs-target="#removeTeamModal"
+                            data-team-id="{{ team.id }}"
+                            data-league-id="{{ league_details.id }}"
+                            data-team-name="{{ team.name }}">
+                            &minus;
+                        </button>
+                    {% endif %}
+
                     <div class="main_winner_wrapper crown_add" style="position: relative;">
                         {% if team.id == league_details.winner_team.id %}
-                            <!-- Winner Icon -->
                             <div style="position: absolute;top: 0;left: 0;width: 100%;height: 100%;background-color: #ffffff70; backdrop-filter: blur(2px);">
                                 <i class="fas fa-crown" style="font-size: 24px; color: gold; position: absolute;top: 50%; left: 50%;transform: translate(-50%,-50%);z-index: 1;"></i>
                             </div>
                         {% endif %}
-                        
+
                         {% if team.team_image and team.team_image != 'null' %}
-                            <img src="{{ team.team_image.url }}" alt="{{ forloop.counter }}{{ team.team_image }}" class="img-thumbnail team-image" style="width: 150px; height: 150px; object-fit: cover;">
+                            <img src="{{ team.team_image.url }}" alt="{{ forloop.counter }}{{ team.team_image }}" class="img-thumbnail team-image" style="width: 80px; height: 80px; object-fit: cover;">
                         {% else %}
-                            <img src="https://i.sstatic.net/l60Hf.png" alt="{{ forloop.counter }}" class="img-thumbnail" style="width: 150px; height: 150px; object-fit: cover;">
+                            <img src="https://i.sstatic.net/l60Hf.png" alt="{{ forloop.counter }}" class="img-thumbnail" style="width: 80px; height: 80px; object-fit: cover;">
                         {% endif %}
-                
                     </div>
-                    <h5 class="mt-2 mb-0">{{ team.name }}</h5>
+                    <h6 class="mt-2 mb-0">{{ team.name }}</h6>
                 </div>
-                
-                
+                <div class="modal fade" id="removeTeamModal" tabindex="-1" aria-labelledby="removeTeamModalLabel" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Remove Team</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body" id="removeTeamModalBody">
+                                <!-- Will be filled by JS -->
+                                <p>Are you sure you want to remove this team?</p>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">No</button>
+                                <button type="button" class="btn btn-danger" id="confirmRemoveBtn">Yes, Remove</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {% empty %}
+                    <p>No teams joined yet.</p>
                 {% endfor %}
-                  
-                  
-                  
+
+                                
               </div>
           </div>
       </div>
@@ -174,7 +280,7 @@
       <div class="card mb-4">
           <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
             <!-- League Title -->
-            <h3 class="mb-0">Matches List</h3>
+            <h5 class="mb-0">Matches List</h5>
             
             <!-- Buttons on the Right -->
             <div>
@@ -193,9 +299,9 @@
                   
                   {% for match in matches %}
                     <div class="col-md-4">
-                        <div class="card match-card">
+                        <div class="card match-card border shadow-sm">
                             <div class="card-header d-flex justify-content-between">
-                                <span>Match {{match.match_number}}: {{match.team1}} VS {{match.team2}}</span>
+                                <span>Match {{match.match_number}}: {{match.team1|truncate_team_name}} VS {{match.team2|truncate_team_name}}</span>
                                 <div>
                                     <a href="#" class="mr-2" data-toggle="modal" data-target="#editModal{{ match.id }}"><i class="fa-solid fa-file-pen"></i></a>
                                     <a href="#" data-toggle="modal" data-target="#exampleModal{{ match.id }}"><i class="fa-solid fa-eye"></i></a>
@@ -340,9 +446,11 @@
                                                     <th scope="col">Action</th>
                                                 </tr>
                                             </thead>
-                                            <tbody>
+                                            
+                                                {% if match.result %}
+                                                <tbody>
                                                 {% for court in match.result %}
-                                                    <form method="POST" class="update-match-form" data-id="{{ court.id }}">
+                                                    <form method="POST" action="{% url 'dashboard:update_match' set_score_id=court.id %}">
                                                         {% csrf_token %}
                                                         <tr>
                                                             <td>
@@ -359,12 +467,43 @@
                                                                 <input type="text" name="status_{{ court.id }}" value="{{ court.is_completed }}" class="form-control" readonly>
                                                             </td>
                                                             <td>
-                                                                <button type="button" class="btn btn-primary btn-sm save-btn" data-id="{{ court.id }}">Save</button>
+                                                                <button type="submit" class="btn btn-primary btn-sm save-btn">Save</button>
                                                             </td>
                                                         </tr>
                                                     </form>
                                                 {% endfor %}
-                                            </tbody>
+                                                </tbody>
+                                                {% else %}
+                                                <tbody>
+                                                    <form method="POST" action="{% url 'dashboard:submit_score' tour_id=league_details.id %}">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="match_id" value="{{ match.id }}">
+                                                    {% for i in match.set_number|times %}
+                                                        <tr>
+                                                            <td>
+                                                                <input type="number" name="set_num_{{ forloop.counter }}" value="{{ forloop.counter }}" class="form-control" readonly>
+                                                            </td>
+                                                            <td>
+                                                                <input type="number" name="team1_score" class="form-control" required>
+                                                            </td>
+                                                            <td>
+                                                                <input type="number" name="team2_score" class="form-control" required>
+                                                            </td>
+                                                            <td>
+                                                                <input type="text" class="form-control" value="Pending" readonly>
+                                                            </td>
+                                                            
+                                                        </tr>
+                                                    {% endfor %}
+                                                    <tr>
+                                                        <td colspan="5" class="text-end">
+                                                            <button type="submit" class="btn btn-success">Submit All Scores</button>
+                                                        </td>
+                                                    </tr>
+                                                </form>
+                                                </tbody>
+                                                {% endif %}
+                                            
                                             
                                         </table>
                                     
@@ -375,9 +514,10 @@
                             </div>
                         </div>
                     </div>
+                    {% empty %}
                     
-                    
-                  {% endfor %}
+                    <p>Matches not started yet.</p>
+                    {% endfor %}
   
               </div>
           </div>
@@ -396,35 +536,65 @@
         });
     </script>
     
-    <script>
-        $(document).ready(function () {
-            $(".save-btn").on("click", function (e) {
-                e.preventDefault();
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const modal = document.getElementById('startTournamentModal');
+    const confirmBtn = document.getElementById('confirmStartBtn');
 
-                const button = $(this);
-                const form = button.closest("form");
-                const formData = form.serialize();
-                const setScoreId = button.data("id");
+    modal.addEventListener('show.bs.modal', function (event) {
+      const button = event.relatedTarget;
+      const leagueId = button.getAttribute('data-league-id');
 
-                $.ajax({
-                    url: `/admin/update_match/${setScoreId}/`, // Your Django URL for updating match
-                    type: "POST",
-                    data: formData,
-                    headers: {
-                        "X-CSRFToken": $("input[name=csrfmiddlewaretoken]").val(),
-                    },
-                    alert("Match updated successfully!");
-                    success: function (response) {
-                        alert("Match updated successfully!");
-                        // Optionally update the UI or form inputs with the new data
-                    },
-                    error: function (xhr, status, error) {
-                        alert("An error occurred: " + error);
-                    },
-                });
+      // Set the URL on the confirm button
+      confirmBtn.href = `/admin/hit_start_tournamnet/${leagueId}/`;  // Adjust if URL pattern is different
+    });
+  });
+</script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        let selectedTeamId = null;
+        let selectedLeagueId = null;
+
+        const removeTeamModal = document.getElementById('removeTeamModal');
+
+        removeTeamModal.addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget;
+            selectedTeamId = button.getAttribute('data-team-id');
+            selectedLeagueId = button.getAttribute('data-league-id');
+            const teamName = button.getAttribute('data-team-name');
+
+            const modalBody = document.getElementById('removeTeamModalBody');
+            modalBody.innerHTML = `<p>Are you sure you want to remove <strong>${teamName}</strong> from the league?</p>`;
+        });
+
+        document.getElementById('confirmRemoveBtn').addEventListener('click', function () {
+            fetch('/admin/remove-team-from-league/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}',
+                },
+                body: JSON.stringify({
+                    team_id: selectedTeamId,
+                    league_id: selectedLeagueId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();  // Reload the page to reflect removal
+                } else {
+                    alert('Failed to remove team.');
+                }
+            })
+            .catch(() => {
+                alert('An error occurred while removing the team.');
             });
         });
-    </script>
+    });
+</script>
+
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
 {% endblock %}

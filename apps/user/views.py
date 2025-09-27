@@ -1214,86 +1214,207 @@ def add_user(request):
 #change
 @api_view(('GET',))
 def user_profile_view_api(request):
-    data = {'status':'', 'data':"", 'message':'','is_sponsor':False, 'is_ambassador':False}
-    try:        
+    data = {'status': '', 'data': "", 'message': '', 'is_sponsor': False, 'is_ambassador': False}
+
+    try:
         user_uuid = request.GET.get('user_uuid')
         user_secret_key = request.GET.get('user_secret_key')
         check_user = User.objects.filter(uuid=user_uuid, secret_key=user_secret_key)
-        #protocol = 'https' if request.is_secure() else 'http'
+
         host = request.get_host()
-        # Construct the complete URL for media files
-        media_base_url = f"{protocol}://{host}{settings.MEDIA_URL}"
+        # protocol = 'https' if request.is_secure() else 'http'
+        # media_base_url = f"{protocol}://{host}{settings.MEDIA_URL}"
+
         if check_user.exists():
             get_user = check_user.first()
-            user_data = check_user.values('uuid','secret_key','username','first_name','last_name','phone','image',
-                                          'is_admin','is_team_manager','is_player','is_coach','is_organizer','is_ambassador','is_sponsor', 'latitude',
-                                          'longitude','permanent_location', 'current_location','gender', 'is_updated','user_birthday', 'availability')
-            
+            user_data = check_user.values(
+                'uuid', 'secret_key', 'username', 'first_name', 'last_name', 'phone', 'image',
+                'is_admin', 'is_team_manager', 'is_player', 'is_coach', 'is_organizer', 'is_ambassador', 'is_sponsor',
+                'latitude', 'longitude', 'permanent_location', 'current_location', 'gender','bio',
+                'is_updated', 'user_birthday', 'availability'
+            )
+
             user_rank = get_user.rank
-            if user_rank == "null" or user_rank == "" or  not user_rank:
+            if not user_rank or user_rank in ["null", ""]:
                 user_rank = 1
             else:
                 user_rank = float(user_rank)
 
-            if get_user.is_ambassador == True:
+            if get_user.is_ambassador:
                 data["is_ambassador"] = True
-            if get_user.is_sponsor == True:
+            if get_user.is_sponsor:
                 data["is_sponsor"] = True
-            # Convert phone number to string
+
             user_data = list(user_data)
             for user in user_data:
                 user['phone'] = str(user['phone'])
                 for key, value in user.items():
-                    # If the value is an empty string or "null", set it to None
                     if value == "" or value == "null":
                         user[key] = None
 
-            data["status"], data['data'], data["message"] = status.HTTP_200_OK, {"user_data": user_data, "player_data":""}, "Data found"
-            counter = 0
-            if get_user.is_player and counter == 0:
-                data['data']["player_data"] = {"player_rank":user_rank,"player_rank_lock":False}
-                    
-                foll__ = AmbassadorsDetails.objects.filter(ambassador_id=get_user.id)
-                
-                if not foll__.exists():
-                    foll__ = AmbassadorsDetails.objects.create(ambassador_id=get_user.id)
-                    data['data']["followers"] = {"followers":0,"following":0}
-                else:
-                    data['data']["followers"] = {"followers":foll__.first().follower.count(),"following":foll__.first().following.count()}
-                data['data']["post"] = []
-                data['data']["ads_data"] = []
-            
-            if get_user.is_ambassador and counter == 0:
-                counter += 1
-                data['data']["player_data"] = {"player_rank":user_rank,"player_rank_lock":False}
-                foll__ = AmbassadorsDetails.objects.filter(ambassador_id=get_user.id)
-                
-                if not foll__.exists():
-                    foll__ = AmbassadorsDetails.objects.create(ambassador_id=get_user.id)
-                    data['data']["followers"] = {"followers":0,"following":0}
-                else:
-                    data['data']["followers"] = {"followers":foll__.first().follower.count(),"following":foll__.first().following.count()}
-                
+            data["status"] = status.HTTP_200_OK
+            data["message"] = "Data found"
+            data['data'] = {"user_data": user_data, "player_data": "", "followers": {"followers": 0, "following": 0}, "post": [], "ads_data": []}
+
+            player_profile = Player.objects.filter(player=get_user).first()
+
+            if player_profile:
+                followers_count = player_profile.follower.count()
+                following_count = player_profile.following.count()
+                data['data']["followers"] = {"followers": followers_count, "following": following_count}
+
+            # Shared player_data block
+            data['data']["player_data"] = {"player_rank": user_rank, "player_rank_lock": False}
+
+            if get_user.is_player:
+                # For player only (player_data already added above)
+                pass
+
+            if get_user.is_ambassador:
                 post_data = AmbassadorsPost.objects.filter(created_by=get_user).values()
-                for i in post_data:
-                    i["file"] = i["file"]
                 data['data']["post"] = list(post_data)
-                data['data']["ads_data"] = []
-            if get_user.is_sponsor and counter == 0:
-                counter += 1
-                data['data']["followers"] = {"followers":0,"following":0}
-                data['data']["post"] = []
-                data['data']["ads_data"] = list(Advertisement.objects.filter(created_by=get_user).values())
-            if counter == 0:
-                data['data']["ads_data"]=[]
-                data['data']["post"]=[]
-                data['data']["player_data"] = {"player_rank":user_rank,"player_rank_lock":False}
+
+            if get_user.is_sponsor:
+                ads_data = Advertisement.objects.filter(created_by=get_user).values()
+                data['data']["ads_data"] = list(ads_data)
+
         else:
-            data["status"], data['data'], data["message"] = status.HTTP_404_NOT_FOUND, "", "User not found"
+            data["status"] = status.HTTP_404_NOT_FOUND
+            data['data'] = ""
+            data["message"] = "User not found"
+
     except Exception as e:
-        data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
+        data['status'] = status.HTTP_400_BAD_REQUEST
+        data['message'] = f"{e}"
+
     return Response(data, content_type='application/json')
 
+
+# @api_view(('GET',))
+# def user_profile_view_using_pagination(request):
+#     data = {'status':'', 'data':"", 'message':'','is_sponsor':False, 'is_ambassador':False}
+#     try:        
+#         user_uuid = request.GET.get('user_uuid')
+#         user_secret_key = request.GET.get('user_secret_key')
+#         check_user = User.objects.filter(uuid=user_uuid, secret_key=user_secret_key)
+#         #protocol = 'https' if request.is_secure() else 'http'
+#         host = request.get_host()
+#         # Construct the complete URL for media files
+#         media_base_url = f"{protocol}://{host}{settings.MEDIA_URL}"
+#         if check_user.exists():
+#             get_user = check_user.first()
+#             user_data = check_user.values('uuid','secret_key','username','first_name','last_name','phone','user_birthday','image','gender','street',
+#                                           'city','state','postal_code','country','fb_link','twitter_link','youtube_link','tictok_link','instagram_link',
+#                                           'is_admin','is_team_manager','is_player','is_coach','is_organizer','is_ambassador','is_sponsor', 'latitude',
+#                                           'longitude', 'permanent_location', 'current_location')
+            
+#             wallet = getattr(get_user, 'wallet', None)
+#             if wallet:
+#                 wallet_id = wallet.id
+#                 wallet_balance = wallet.balance
+#                 wallet_created_at = wallet.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                
+#             else:
+#                 wallet_id = None
+#                 wallet_balance = 0.0,
+#                 wallet_created_at = None
+            
+            
+            
+#             user_rank = get_user.rank
+#             if user_rank == "null" or user_rank == "" or  not user_rank:
+#                 user_rank = 1
+#             else:
+#                 user_rank = float(user_rank)
+
+#             if get_user.is_ambassador == True:
+#                 data["is_ambassador"] = True
+#             if get_user.is_sponsor == True:
+#                 data["is_sponsor"] = True
+#             # Convert phone number to string
+#             user_data = list(user_data)
+#             for user in user_data:
+#                 user['phone'] = str(user['phone'])
+#                 for key, value in user.items():
+#                     # If the value is an empty string or "null", set it to None
+#                     if value == "" or value == "null":
+#                         user[key] = None
+
+#                 user["wallet_id"] = wallet_id
+#                 user['wallet_balance'] = wallet_balance
+#                 user['wallet_created_at'] = wallet_created_at
+            
+#             data["status"], data['data'], data["message"] = status.HTTP_200_OK, {"user_data": user_data, "player_data":""}, "Data found"
+#             counter = 0
+#             if get_user.is_player and counter == 0:
+#                 # print("hit")
+#                 # player_rank = Player.objects.filter(player_id=get_user.id)
+#                 # if player_rank.exists():
+#                 #     player_rank=player_rank.first()
+#                 #     data['data']["player_data"] = {"player_rank":player_rank.player.rank,"player_rank_lock":player_rank.player_rank_lock}
+#                 # else:
+#                 data['data']["player_data"] = {"player_rank":user_rank,"player_rank_lock":False}
+                    
+#                 foll__ = Player.objects.filter(player_email=get_user.email).first()
+#                 data['data']["followers"] = {"followers":foll__.follower.count(),"following":foll__.following.count()}
+#                 data['data']["post"] = []
+#                 data['data']["ads_data"] = []
+            
+#             if get_user.is_ambassador and counter == 0:
+#                 # counter += 1
+#                 # player_rank = Player.objects.filter(player_id=get_user.id)
+#                 # if player_rank.exists():
+#                 #     player_rank=player_rank.first()
+#                 #     data['data']["player_data"] = {"player_rank":player_rank.player_ranking,"player_rank_lock":player_rank.player_rank_lock}
+#                 # else:
+#                 data['data']["player_data"] = {"player_rank":user_rank,"player_rank_lock":False}
+#                 # foll_ = AmbassadorsDetails.objects.all()
+#                 foll__ = Player.objects.filter(player_email=get_user.email).first()
+                
+#                 if foll__:
+#                     data['data']["followers"] = {"followers":foll__.follower.count(),"following":foll__.following.count()}
+#                 else:
+#                     data['data']["followers"] = {"followers":0, "following":0}
+                
+#                 post_data = AmbassadorsPost.objects.filter(created_by=get_user).values("id","uuid","secret_key","file","thumbnail","post_text","approved_by_admin","created_at","created_by_id","likes")
+#                 paginator = PageNumberPagination()
+#                 paginator.page_size = 2  # Set the page size to 20
+#                 posts = paginator.paginate_queryset(post_data, request)
+#                 paginated_response = paginator.get_paginated_response(posts)
+#                 for i in post_data:
+#                     i["file"] = i["file"]
+                
+#                 data['data']["post"] = paginated_response.data
+#                 data['data']["ads_data"] = []
+#                 return Response(data, content_type='application/json')
+#             if get_user.is_sponsor and counter == 0:
+#                 counter += 1
+#                 # print(Advertisement.objects.filter(created_by=get_user).values())
+#                 ads_data = Advertisement.objects.filter(created_by=get_user).values()
+#                 paginator = PageNumberPagination()
+#                 paginator.page_size = 2  # Set the page size to 20
+#                 ads = paginator.paginate_queryset(ads_data, request)
+#                 paginated_response = paginator.get_paginated_response(ads)
+#                 foll__ = Player.objects.filter(player_email=get_user.email).first()
+                
+#                 if foll__:
+#                     data['data']["followers"] = {"followers":foll__.follower.count(),"following":foll__.following.count()}
+#                 else:
+#                     data['data']["followers"] = {"followers":0, "following":0}
+#                 data['data']["post"] = []
+#                 data['data']["ads_data"] = paginated_response.data
+#                 return Response(data, content_type='application/json')
+#             if counter == 0:
+#                 print("elase")
+#                 data['data']["ads_data"]=[]
+#                 data['data']["post"]=[]
+#                 data['data']["player_data"] = {"player_rank":user_rank,"player_rank_lock":False}
+#                 return Response(data, content_type='application/json')
+#         else:
+#             data["status"], data['data'], data["message"] = status.HTTP_404_NOT_FOUND, "", "User not found"
+#     except Exception as e:
+#         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
+#     return Response(data, content_type='application/json')
 
 @api_view(('GET',))
 def user_profile_view_using_pagination(request):
@@ -1350,74 +1471,44 @@ def user_profile_view_using_pagination(request):
                 user['wallet_created_at'] = wallet_created_at
             
             data["status"], data['data'], data["message"] = status.HTTP_200_OK, {"user_data": user_data, "player_data":""}, "Data found"
-            counter = 0
-            if get_user.is_player and counter == 0:
-                # print("hit")
-                # player_rank = Player.objects.filter(player_id=get_user.id)
-                # if player_rank.exists():
-                #     player_rank=player_rank.first()
-                #     data['data']["player_data"] = {"player_rank":player_rank.player.rank,"player_rank_lock":player_rank.player_rank_lock}
-                # else:
-                data['data']["player_data"] = {"player_rank":user_rank,"player_rank_lock":False}
-                    
-                foll__ = AmbassadorsDetails.objects.filter(ambassador_id=get_user.id)
+                         
+            data['data']["player_data"] = {"player_rank":user_rank,"player_rank_lock":False}
                 
-                if not foll__.exists():
-                    foll__ = AmbassadorsDetails.objects.create(ambassador_id=get_user.id)
-                    data['data']["followers"] = {"followers":0,"following":0}
-                # print(foll_.values(), get_user.id)
-                else:
-                    data['data']["followers"] = {"followers":foll__.first().follower.count(),"following":foll__.first().following.count()}
-                data['data']["post"] = []
-                data['data']["ads_data"] = []
+            foll__ = Player.objects.filter(player_email=get_user.email).first()
             
-            if get_user.is_ambassador and counter == 0:
-                # counter += 1
-                # player_rank = Player.objects.filter(player_id=get_user.id)
-                # if player_rank.exists():
-                #     player_rank=player_rank.first()
-                #     data['data']["player_data"] = {"player_rank":player_rank.player_ranking,"player_rank_lock":player_rank.player_rank_lock}
-                # else:
-                data['data']["player_data"] = {"player_rank":user_rank,"player_rank_lock":False}
-                # foll_ = AmbassadorsDetails.objects.all()
-                foll__ = AmbassadorsDetails.objects.filter(ambassador_id=get_user.id)
-                
-                if not foll__.exists():
-                    foll__ = AmbassadorsDetails.objects.create(ambassador_id=get_user.id)
-                    data['data']["followers"] = {"followers":0,"following":0}
-                # print(foll_.values(), get_user.id)
-                else:
-                    data['data']["followers"] = {"followers":foll__.first().follower.count(),"following":foll__.first().following.count()}
-                
-                post_data = AmbassadorsPost.objects.filter(created_by=get_user).values("id","uuid","secret_key","file","thumbnail","post_text","approved_by_admin","created_at","created_by_id","likes")
-                paginator = PageNumberPagination()
-                paginator.page_size = 2  # Set the page size to 20
-                posts = paginator.paginate_queryset(post_data, request)
-                paginated_response = paginator.get_paginated_response(posts)
-                for i in post_data:
-                    i["file"] = i["file"]
-                
-                data['data']["post"] = paginated_response.data
-                data['data']["ads_data"] = []
-                return Response(data, content_type='application/json')
-            if get_user.is_sponsor and counter == 0:
-                counter += 1
-                # print(Advertisement.objects.filter(created_by=get_user).values())
-                ads_data = Advertisement.objects.filter(created_by=get_user).values()
-                paginator = PageNumberPagination()
-                paginator.page_size = 2  # Set the page size to 20
-                ads = paginator.paginate_queryset(ads_data, request)
-                paginated_response = paginator.get_paginated_response(ads)
-                data['data']["followers"] = {"followers":0,"following":0}
-                data['data']["post"] = []
-                data['data']["ads_data"] = paginated_response.data
-                return Response(data, content_type='application/json')
-            if counter == 0:
-                print("elase")
-                data['data']["ads_data"]=[]
-                data['data']["post"]=[]
-                data['data']["player_data"] = {"player_rank":user_rank,"player_rank_lock":False}
-                return Response(data, content_type='application/json')
+            if foll__:
+                data['data']["followers"] = {"followers":foll__.follower.count(),"following":foll__.following.count()}
+            else:
+                data['data']["followers"] = {"followers":0, "following":0}
+        
+            
+            post_data = AmbassadorsPost.objects.filter(created_by=get_user).values("id","uuid","secret_key","file","thumbnail","post_text","approved_by_admin","created_at","created_by_id","likes")
+            paginator = PageNumberPagination()
+            paginator.page_size = 2  # Set the page size to 20
+            posts = paginator.paginate_queryset(post_data, request)
+            paginated_response = paginator.get_paginated_response(posts)
+            for i in post_data:
+                i["file"] = i["file"]
+            
+            data['data']["post"] = paginated_response.data
+            
+            
+            # print(Advertisement.objects.filter(created_by=get_user).values())
+            ads_data = Advertisement.objects.filter(created_by=get_user).values()
+            paginator = PageNumberPagination()
+            paginator.page_size = 2  # Set the page size to 20
+            ads = paginator.paginate_queryset(ads_data, request)
+            paginated_response = paginator.get_paginated_response(ads)
+            foll__ = Player.objects.filter(player_email=get_user.email).first()
+            
+            if foll__:
+                data['data']["followers"] = {"followers":foll__.follower.count(),"following":foll__.following.count()}
+            else:
+                data['data']["followers"] = {"followers":0, "following":0}
+            data['data']["post"] = []
+            data['data']["ads_data"] = paginated_response.data
+            return Response(data, content_type='application/json')
+            
         else:
             data["status"], data['data'], data["message"] = status.HTTP_404_NOT_FOUND, "", "User not found"
     except Exception as e:
@@ -2230,25 +2321,65 @@ def calculate_age(dob):
     return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
 
 
-def is_availability_matching(user_schedule, search_criteria):
-    for day, search_time_ranges in search_criteria.items():
-        if day not in user_schedule:
-            continue  # Skip days not in the user schedule
+def is_availability_matching(user_availability, search_availability):
+    """
+    Check if user availability matches search availability.
+    
+    Args:
+        user_availability (dict): User's availability, e.g., 
+            {"Friday": [{"start": "2:00 PM", "end": "6:00 PM"}], ...}
+        search_availability (dict): Search availability, e.g., 
+            {"Friday": ["14:45", "17:30"], ...}
+    
+    Returns:
+        bool: True if there's a match in availability, False otherwise.
+    """
+    try:
+        # If either availability is empty, return False
+        if not user_availability or not search_availability:
+            return False
 
-        search_start_time = datetime.strptime(search_time_ranges[0], "%H:%M").time()
-        search_end_time = datetime.strptime(search_time_ranges[1], "%H:%M").time()
+        # Get common days between user and search availability
+        common_days = set(user_availability.keys()) & set(search_availability.keys())
+        if not common_days:
+            return False
 
-        for time_range in user_schedule[day]:
-            start_time = datetime.strptime(time_range["start"], "%H:%M").time()
-            end_time = datetime.strptime(time_range["end"], "%H:%M").time()
+        for day in common_days:
+            user_slots = user_availability.get(day, [])
+            search_times = search_availability.get(day, [])
 
-            # Check for overlap
-            if not (search_end_time <= start_time or search_start_time >= end_time):
-                return True  # Overlap found
+            # Ensure both slots and times exist
+            if not user_slots or not search_times:
+                continue
 
-    return False
+            for slot in user_slots:
+                # Parse user start and end times (12-hour format with AM/PM)
+                start_str = slot.get("start")
+                end_str = slot.get("end")
+                if not start_str or not end_str:
+                    continue
 
+                try:
+                    user_start = datetime.strptime(start_str, "%I:%M %p")
+                    user_end = datetime.strptime(end_str, "%I:%M %p")
+                except ValueError:
+                    continue  # Skip if time format is invalid
 
+                for search_time in search_times:
+                    try:
+                        # Parse search time (24-hour format)
+                        search_dt = datetime.strptime(search_time, "%H:%M")
+                    except ValueError:
+                        continue  # Skip if time format is invalid
+
+                    # Compare times: check if search_time falls within user slot
+                    if user_start.time() <= search_dt.time() <= user_end.time():
+                        return True  # Match found
+
+        return False  # No match found
+    except Exception as e:
+        # Silently handle errors to avoid affecting the response structure
+        return False
 
 @api_view(['GET'])
 def get_matching_users(request):
@@ -2321,7 +2452,7 @@ def get_matching_users(request):
         except PageNotAnInteger:
             paginated_users = paginator.page(1)
         except EmptyPage:
-            return JsonResponse({"message": "No more matching players", "data": []}, status=status.HTTP_200_OK)
+            return JsonResponse({"message": "No more matching players", "data": []}, status=200)
 
         response_data = [
             {
@@ -2359,20 +2490,20 @@ def get_matching_users(request):
             prev_params = request.GET.copy()
             prev_params['page'] = paginated_users.previous_page_number()
             previous_url = f"{base_url.split('?')[0]}?{prev_params.urlencode()}"
-        print(matching_users)
+        
         return JsonResponse({
             "message": "Matching players found" + (f" {msg_}" if msg_ else ""),
             "count": len(matching_users),
             "next": next_url,
             "previous": previous_url,
             "data": response_data
-        }, status=status.HTTP_200_OK)
+        }, status=200)
     except Exception as e:
         import traceback
         error_trace = traceback.format_exc()
         return JsonResponse(
             {"message": str(e), "line": error_trace.splitlines()[-2], "data": []},
-            status=status.HTTP_400_BAD_REQUEST
+            status=400
         )
 
 
@@ -3886,26 +4017,20 @@ def event_matches_table(request):
         return render(request, 'match_pdf/matces_table.html', context)
 
 
+
 from collections import defaultdict
 
 @api_view(["GET"])
 def del_user_stripe_id(request):
     try:
-        wallet_map = defaultdict(list)
+        wallet_user_list = []
 
         # Group wallets by user ID
         for wallet in Wallet.objects.all():
-            wallet_map[wallet.user_id].append(wallet)
+            wallet_user_list.append(wallet.user.id)
 
-        # Remove duplicates
-        for user_id, wallets in wallet_map.items():
-            if len(wallets) > 1:
-                # Keep the first wallet, delete the rest
-                for duplicate_wallet in wallets[1:]:
-                    print(f"Deleting duplicate wallet: {duplicate_wallet}")
-                    # duplicate_wallet.delete()
-                    return Response({"done":f"Deleting duplicate wallet: {duplicate_wallet}"}, status=status.HTTP_200_OK)
-        return Response({"done":"done"}, status=status.HTTP_200_OK)
+        
+        return Response({"done":wallet_user_list}, status=status.HTTP_200_OK)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)    
         

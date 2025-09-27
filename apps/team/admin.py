@@ -264,3 +264,38 @@ class LeaguesPesrsonTypeAdmin(admin.ModelAdmin):
 
 admin.site.register(TournamentScoreApproval)
 admin.site.register(TournamentScoreReport)
+
+
+
+@admin.register(OpenPlayInvitation)
+class OpenPlayInvitationAdmin(admin.ModelAdmin):
+    # Fields to display in the list view
+    list_display = ('user', 'event', 'invited_by', 'status', 'created_at')
+
+    # Fields to search
+    search_fields = (
+        'user__first_name', 'user__last_name', 'user__email',
+        'invited_by__first_name', 'invited_by__last_name', 'invited_by__email',
+        'event__name', 'status'
+    )
+
+    # Filters for the sidebar
+    list_filter = ('status', 'created_at', 'user', 'invited_by')
+
+    # Optional: Customize how ForeignKey fields are displayed
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('user', 'event', 'invited_by')
+
+    # Optional: Display user names instead of object IDs
+    def user(self, obj):
+        return f"{obj.user.first_name} {obj.user.last_name}"
+    user.admin_order_field = 'user__first_name'  # Enable sorting by first name
+
+    def invited_by(self, obj):
+        return f"{obj.invited_by.first_name} {obj.invited_by.last_name}"
+    invited_by.admin_order_field = 'invited_by__first_name'  # Enable sorting by first name
+
+    def event(self, obj):
+        return obj.event.name
+    event.admin_order_field = 'event__name'  # Enable sorting by event name
+    

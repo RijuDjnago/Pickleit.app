@@ -1,0 +1,27 @@
+{% load static %}
+<div class="download-sec" data-aos="fade-up" data-aos-duration="400">
+    <div class="container">
+      <h3>Click here to <span>download app</span></h3>
+      <p>PickleIt connects players with local matches</p>
+      <div class="download-now">
+        <a href="https://apps.apple.com/us/app/pickleit/id6742874193" target="_blank" data-tilt data-tilt-reverse="true" data-tilt-max="12"><img src="{% static 'images/indexing/apple-store.png' %}" alt=""></a>
+        <a href="https://play.google.com/store/apps/details?id=com.pickleitusa" target="_blank" data-tilt data-tilt-reverse="true" data-tilt-max="12"><img src="{% static 'images/indexing/play-store.png' %}" alt=""></a>
+      </div>
+    </div>
+</div>
+<footer class="footer-main">
+    <div class="container">
+      <a href="" class="footer-logo" data-aos="fade-up" data-aos-duration="400">
+        <img src="{% static 'images/indexing/footer-logo.png' %}" alt="">
+      </a>
+      <ul>
+        <li><a href="{% url 'privacy_policy'%}">Privacy Policy</a></li>
+        <li><a href="{% url 'terms_conditions'%}">Terms & Conditions</a></li>
+      </ul>
+      <p>*PickleIt is an all-in-one platform for pickleball players, clubs, and tournament organizers. It streamlines event discovery, registration, scheduling, scoring, and community engagement—so players spend less time coordinating and more time on court. </p>
+      <p>For any queries or support pls email us at <a href="mailto:joinpickleit@gmail.com">joinpickleit@gmail.com</a> or contact us at <a href="tel:+1-833-742-5536">+1-833-742-5536</a></p>
+      <div class="copyright-text">
+        <p>© 2025 Pickleit. All Rights Reserved</p>
+      </div>
+    </div>
+  </footer>

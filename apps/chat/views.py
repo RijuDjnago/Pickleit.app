@@ -1,5 +1,5 @@
 from datetime import datetime
-
+from django.shortcuts import get_object_or_404
 from apps.chat.models import *
 from apps.user.helpers import *
 from apps.team.models import *
@@ -1187,3 +1187,50 @@ def get_room_user_status(request):
     except Exception as e:
         return Response({"status": status.HTTP_400_BAD_REQUEST, "message": str(e), "data": []})
  
+
+
+class UserSearchSerializer(serializers.ModelSerializer):
+    uuid = serializers.UUIDField()
+    secret_key = serializers.CharField()
+    email = serializers.EmailField()
+    first_name = serializers.CharField()
+    last_name = serializers.CharField()
+    room = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 'uuid', 'secret_key', 'email', 'first_name', 'last_name',
+            'room', 'image'
+        ]
+
+    def get_room(self, obj):
+        user = self.context.get('user')
+        room = Room.objects.filter(Q(user_one=obj, user_two=user) | Q(user_one=user, user_two=obj)).first()
+        return room.name if room else None
+
+@api_view(['GET'])
+def get_user_search(request):
+    uid = request.GET.get('uuid')
+    search_text = request.GET.get('search_text')
+    user = get_object_or_404(User, uuid=uid)
+    users = User.objects.all()
+    if search_text:
+        users = users.filter(
+            Q(first_name__icontains=search_text) |
+            Q(last_name__icontains=search_text) |
+            Q(email__icontains=search_text)
+        )
+    users = users.order_by('first_name')[:30]
+
+       
+    serializer = UserSearchSerializer(users, many=True, context={'user': user})
+    res = {
+        'status': 'success',
+        'data': serializer.data,
+        'count': len(serializer.data)
+    }
+    return Response(res, status=status.HTTP_200_OK)
+
+
+

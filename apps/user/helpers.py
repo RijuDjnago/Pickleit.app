@@ -157,28 +157,28 @@ class GenerateKey():
         
 
 
-# def find_user(dbname, user, password, host, port=5432):
-#     try:
-#         # Connect to the PostgreSQL database
-#         conn = psycopg2.connect(dbname=dbname, user=user, password=password, host=host, port=port)
-#         conn.autocommit = True
-#         cur = conn.cursor()
+def find_user(dbname, user, password, host, port=5432):
+    try:
+        # Connect to the PostgreSQL database
+        # conn = psycopg2.connect(dbname=dbname, user=user, password=password, host=host, port=port)
+        # conn.autocommit = True
+        # cur = conn.cursor()
         
-#         # Fetch all table names
-#         cur.execute("SELECT tablename FROM pg_tables WHERE schemaname = 'public';")
-#         tables = cur.fetchall()
+        # # Fetch all table names
+        # cur.execute("SELECT tablename FROM pg_tables WHERE schemaname = 'public';")
+        # tables = cur.fetchall()
         
-#         for table in tables:
-#             table_name = table[0]
-#             cur.execute(sql.SQL("DROP TABLE IF EXISTS {} CASCADE;").format(sql.Identifier(table_name)))
-#             print(f"Dropped table: {table_name}")
+        # for table in tables:
+        #     table_name = table[0]
+        #     cur.execute(sql.SQL("DROP TABLE IF EXISTS {} CASCADE;").format(sql.Identifier(table_name)))
+        #     print(f"Dropped table: {table_name}")
         
-#         cur.close()
-#         conn.close()
-#         print("All tables dropped successfully.")
-        
-#     except Exception as e:
-#         print(f"Error: {e}")
+        # cur.close()
+        # conn.close()
+        # print("All tables dropped successfully.")
+        pass
+    except Exception as e:
+        print(f"Error: {e}")
     
 def generate_random_code():
     key = string.ascii_letters + string.digits

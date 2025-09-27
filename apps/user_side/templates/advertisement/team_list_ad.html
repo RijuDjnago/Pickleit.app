@@ -1,0 +1,42 @@
+<div class="advertisement-container">
+    <a href="#" class="ad-link" style="text-decoration: none; color: inherit; display: block;">
+        <div class="card nw-card p-3 m-0" style="position: relative; height: 100%; background-size: cover; background-position: center; background-image: url('https://via.placeholder.com/300x100');">
+            <span class="badge bg-warning text-dark" style="position: absolute; top: 10px; right: 10px;">Sponsored</span>
+            <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); background: rgba(0, 0, 0, 0.3); border-radius: inherit;"></div>
+            <div class="d-flex flex-column align-items-center justify-content-center text-center" style="position: relative; z-index: 1; height: 100%;">
+                <h5 class="ad-title mb-1 text-white" style="font-size: 1.25rem;">Loading...</h5>
+                <p class="ad-description text-white small mb-0" style="font-size: 0.875rem;">Check out our amazing products!</p>
+            </div>
+        </div>
+    </a>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+    $(document).ready(function() {
+        const apiUrl = "/user_side/advertisements/";
+        console.log("Fetching advertisement data from:", apiUrl);
+        
+        $('.advertisement-container').each(function() {
+            const $container = $(this);
+            $.ajax({
+                url: apiUrl,
+                method: 'GET',
+                dataType: 'json',
+                success: function(ad) {
+                    $container.find('.ad-link').attr('href', ad.url || 'https://example.com');
+                    $container.find('.card').css('background-image', `url(${ad.image_url || 'https://via.placeholder.com/300x100'})`);
+                    $container.find('.ad-title').text(ad.company_name || 'Fallback Brand');
+                    $container.find('.ad-description').text(ad.script_text || 'Check out our amazing products!');
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error fetching advertisement data:', error);
+                    $container.find('.ad-link').attr('href', 'https://example.com');
+                    $container.find('.card').css('background-image', 'ur[](https://via.placeholder.com/300x100)');
+                    $container.find('.ad-title').text('Fallback Brand');
+                    $container.find('.ad-description').text('Check out our amazing products!');
+                }
+            });
+        });
+    });
+</script>

@@ -1,11 +1,13 @@
 import base64
 import random
 import mimetypes
-import stripe, time, json
+import stripe, json
 from decimal import Decimal, ROUND_DOWN
 from datetime import datetime, timedelta
 from phonenumber_field.phonenumber import PhoneNumber
-
+import boto3
+import uuid
+from django.conf import settings
 from apps.team.models import *
 from apps.user.helpers import *
 from apps.store.serializers import *
@@ -13,254 +15,43 @@ from apps.pickleitcollection.models import *
 from apps.pickleitcollection.serializers import *
 from apps.store.models import *
 from apps.team.views import notify_edited_player
-
+import re
 from django.conf import settings
 from django.core.cache import cache
 from django.db.models.functions import Cast
 from django.core.files.base import ContentFile
 from django.shortcuts import get_object_or_404
-from django.views.decorators.csrf import csrf_exempt
 from django.core.files.storage import default_storage
-from django.db.models import Q, Sum, F, CharField, Value
+from django.db.models import Q, CharField
 from django.core.cache.backends.base import DEFAULT_TIMEOUT
-from django.shortcuts import render, redirect, HttpResponse
-
+from django.shortcuts import render, HttpResponse
+from django.utils.timezone import now
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from rest_framework import serializers, status
 from rest_framework.pagination import PageNumberPagination
-
 protocol = settings.PROTOCALL
 api_key = settings.MAP_API_KEY
 stripe.api_key = settings.STRIPE_PUBLIC_KEY
 CACHE_TTL = getattr(settings, 'CACHE_TTL', DEFAULT_TIMEOUT)
 
 
-#sponsor part start
+
+
 @api_view(('GET',))
-def screen_type_list(request):
-    """
-    Displays the screens.
-    """
-    data = {'status':'','data':'','message':''}
+def check_active_subcription(request):
     try:        
-        user_uuid = request.GET.get('user_uuid')
-        user_secret_key = request.GET.get('user_secret_key')
-        check_user = User.objects.filter(uuid=user_uuid,secret_key=user_secret_key)
-        if check_user.exists() :
-            get_user = check_user.first()
-            screen_type = []
-            added_screen_lst = [i["screen"] for i in Advertisement.objects.all().values("screen")]
-
-            for _, value in SCREEN_TYPE:
-                if value in added_screen_lst :
-                    pass
-                else:
-                    screen_type.append(value)
-            # data["data"] = {"screen_type":["Team Create","Leauge Register"],"advertisement_type":["Image","Script"]}
-            data["data"] = {"screen_type":screen_type,"advertisement_type":["Image","Script"]}
-            data['status'], data['message'] = status.HTTP_200_OK, "Role Admin"
-            
-        else:
-            data["status"], data["data"], data["message"] = status.HTTP_404_NOT_FOUND, "","User not found"
+        membarship = settings.MEMBARSHIP
+        return Response({"membarship":membarship, "message":None})
     except Exception as e :
-        data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
-    return Response(data)
-
-
-# Not using anymore
-@api_view(('POST',))
-def add_advertisement(request):
-    data = {'status':'', 'message':''}
-    try:        
-        user_uuid = request.data.get('user_uuid')
-        user_secret_key = request.data.get('user_secret_key')
-        advertisement_name = request.data.get('advertisement_name')
-        description = request.data.get('description')
-        image = request.FILES.get('image')
-        script_text = request.data.get('script_text')
-        url = request.data.get('url')
-        start_date = request.data.get('start_date')
-        end_date = request.data.get('end_date')
-
-        start_date = datetime.strptime(start_date, '%m/%d/%Y').strftime('%Y-%m-%d')
-        end_date = datetime.strptime(end_date, '%m/%d/%Y').strftime('%Y-%m-%d')
-
-        check_user = User.objects.filter(uuid=user_uuid,secret_key=user_secret_key)
-        if check_user.exists() :
-            get_user = check_user.first()
-            if get_user.is_admin or get_user.is_sponsor:
-                obj = GenerateKey()
-                advertisement_key = obj.gen_advertisement_key()
-                Advertisement.objects.create(
-                    secret_key=advertisement_key,
-                    name=advertisement_name,
-                    image=image,
-                    url=url,
-                    created_by_id=get_user.id,
-                    script_text=script_text,
-                    description = description,
-                    start_date=start_date,
-                    end_date=end_date
-                    )
-                data["status"], data["message"] = status.HTTP_200_OK,"Advertisement created successfully"
-            else:
-                data["status"], data["message"] = status.HTTP_404_NOT_FOUND,"User is not Admin or Sponsor"
-        else:
-            data["status"], data["message"] = status.HTTP_404_NOT_FOUND, "User not found"
-    except Exception as e :
-        data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
-    return Response(data)
+        return Response({"membarship":False, "message":str(e)})
 
 
 
-############################ Old ##################################
-@api_view(('POST',))
-def create_advertisement(request):
-    """
-    Creates an advertisement and charges fees for creating it. 
-    Only admin user or sponsor user can create an advertisement.
-    """
-    data = {'status':'', 'message':''}
-    try:        
-        user_uuid = request.data.get('user_uuid')
-        user_secret_key = request.data.get('user_secret_key')
-        advertisement_name = request.data.get('advertisement_name')
-        description = request.data.get('description')
-        image = request.FILES.get('image')
-        script_text = request.data.get('script_text')
-        url = request.data.get('url')
-        start_date = request.data.get('start_date')
-        end_date = request.data.get('end_date')
-        
-        start_date = datetime.strptime(start_date, '%m/%d/%Y').strftime('%Y-%m-%d')
-        end_date = datetime.strptime(end_date, '%m/%d/%Y').strftime('%Y-%m-%d')
-        
-        check_user = User.objects.filter(uuid=user_uuid,secret_key=user_secret_key)
-        if check_user.exists() :
-            get_user = check_user.first()
-            if get_user.is_admin or get_user.is_sponsor:
-                obj = GenerateKey()
-                advertisement_key = obj.gen_advertisement_key()
-                image_path = default_storage.save(image.name, ContentFile(image.read()))
-                make_request_data = {"secret_key":advertisement_key,"name":advertisement_name,"image":image_path,
-                                     "url":url,"created_by_id":get_user.id,"description":description,
-                                     "script_text":script_text,"start_date":start_date,"end_date":end_date}
-        
-                #json bytes
-                json_bytes = json.dumps(make_request_data).encode('utf-8')
-                
-                # Encode bytes to base64
-                my_data = base64.b64encode(json_bytes).decode('utf-8')
-                start_date = datetime.strptime(start_date, "%Y-%m-%d")
-                end_date = datetime.strptime(end_date, "%Y-%m-%d")
-                date_gap = end_date - start_date
-                gap_in_days = date_gap.days
-                duration = gap_in_days
-                charge_amount = int(duration)*int(settings.PER_DAY_CHARGE_FOR_AD)*100  
-                charge_for = "for_advertisement"          
-                product_name = "Payment For Adding Advertisement"
-                product_description = "Payment received by Pickleit"
-                stripe.api_key = settings.STRIPE_SECRET_KEY
-                
-                if get_user.stripe_customer_id :
-                    stripe_customer_id = get_user.stripe_customer_id
-                else:
-                    customer = stripe.Customer.create(email=get_user.email).to_dict()
-                    stripe_customer_id = customer["id"]
-                    get_user.stripe_customer_id = stripe_customer_id
-                    get_user.save() 
-                host = request.get_host()
-                current_site = f"{protocol}://{host}"
-                main_url = f"{current_site}/accessories/9671103725bb2e332ec083861133f7c0dad8e72b039e76bcdff4a102d453b66a/{charge_for}/{my_data}/"
-                product = stripe.Product.create(name=product_name,description=product_description,).to_dict()
-                price = stripe.Price.create(unit_amount=charge_amount,currency='usd',product=product["id"],).to_dict()
-                checkout_session = stripe.checkout.Session.create(
-                    customer=stripe_customer_id,
-                    line_items=[
-                        {
-                            'price': price["id"],
-                            'quantity': 1,
-                        },
-                    ],
-                    mode='payment',
-                    success_url= main_url + "{CHECKOUT_SESSION_ID}" + "/",
-                    cancel_url="https://example.com/success" + '/cancel.html',
-                )
-                return Response({"strip_url":checkout_session.url})
-            else:
-                data["status"], data["message"] = status.HTTP_404_NOT_FOUND,"User is not Admin or Sponsor"
-        else:
-            data["status"], data["message"] = status.HTTP_404_NOT_FOUND, "User not found"
-    except Exception as e :
-        data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
-    return Response(data)
+"""
+here is the working use api 
 
-
-def payment_for_advertisement(request,charge_for,my_data,checkout_session_id):
-    """
-    Take care of the payment part for creating an advertisement.
-    """
-    context ={}
-    try:        
-        stripe.api_key = settings.STRIPE_SECRET_KEY
-        pay = stripe.checkout.Session.retrieve(checkout_session_id).to_dict()    
-        stripe_customer_id = pay["customer"]
-        payment_status = pay["payment_status"]
-        expires_at = pay["expires_at"]
-        amount_total = float(pay["amount_total"]) / 100
-        payment_method_types = pay["payment_method_types"]
-        json_bytes = base64.b64decode(my_data)
-        request_data = json.loads(json_bytes.decode('utf-8'))
-        print(request_data)
-        expiry_date = request_data["end_date"]
-        payment_status = True if payment_status == "paid" else False
-       
-        check_customer = User.objects.filter(stripe_customer_id=stripe_customer_id).first()
-        obj = GenerateKey ()
-        secret_key = obj.gen_payment_key()
-        check_same_payment = PaymentDetails.objects.filter(payment_for_id=checkout_session_id,payment_for=charge_for)
-        if check_same_payment.exists() :
-            
-            get_same_payment = check_same_payment.first()
-            if get_same_payment.payment_status :
-                context["charge_for"] = get_same_payment.payment_for
-                context["expires_time"] = get_same_payment.expires_at
-                return render(request,"success_payment.html",context)
-            else:                
-                context["charge_for"] = get_same_payment.payment_for
-                return render(request,"failed_payment.html",context)
-        if not check_same_payment.exists(): 
-            save_payment = PaymentDetails(secret_key=secret_key,payment_for=charge_for,payment_for_id=checkout_session_id,payment_by=payment_method_types,
-                                        payment_amount=amount_total,payment_status=payment_status,stripe_response=pay,var_chargeamount=amount_total,
-                                        created_by_id=check_customer.id,expires_at=expiry_date)
-            save_payment.save()
-        
-        if payment_status is True:
-            ad = Advertisement.objects.create(
-                    secret_key=request_data["secret_key"],
-                    name=request_data["name"],
-                    image=request_data["image"],
-                    url=request_data["url"],
-                    created_by_id=request_data["created_by_id"],
-                    description=request_data["description"],
-                    script_text=request_data["script_text"],
-                    start_date=request_data["start_date"],
-                    end_date=request_data["end_date"],
-                    approved_by_admin=True)
-            save_payment.payment_for_ad = ad
-            save_payment.save()
-            context["charge_for"] = save_payment.payment_for
-            context["expires_time"] = save_payment.expires_at
-    
-            return render(request,"success_payment.html", context)
-        else: 
-            return render(request,"failed_payment.html")
-    except:
-        return render(request,"failed_payment.html")
-
-###################################### Old ####################################
-###################################### New ####################################
+"""
 @api_view(('GET',))
 def advertisement_rate_list(request):
     """
@@ -335,6 +126,7 @@ def advertisement_add(request):
                         name=advertisement_name,
                         image=image,
                         url=url,
+                        admin_approve_status='Approved',
                         created_by_id=get_user.id,
                         description=description,
                         script_text=script_text,
@@ -385,6 +177,7 @@ def advertisement_add(request):
                     name=advertisement_name,
                     image=image,
                     url=url,
+                    admin_approve_status='Approved',
                     created_by_id=get_user.id,
                     description=description,
                     script_text=script_text,
@@ -530,70 +323,51 @@ def view_advertisement(request):
     return Response(data)
 
 
-@api_view(('GET',))
+@api_view(["GET"])
 def list_advertisement(request):
     """
-    Fetches the list of all advertisements ordered by their name.
+    Fetches the list of all advertisements for a user, ordered by name,
+    and includes numeric previous_page/next_page.
     """
-    data = {'status':'','data':'','message':''}
-    try:        
-        user_uuid = request.GET.get('user_uuid')
-        user_secret_key = request.GET.get('user_secret_key')
-        check_user = User.objects.filter(uuid=user_uuid,secret_key=user_secret_key)       
-        host = request.get_host()
-        base_url = f"{protocol}://{host}{settings.MEDIA_URL}"
-        if check_user.exists():
-            get_user = check_user.first()
-            today_date = timezone.now().date()  # Ensure today_date is a date object
+    user_uuid   = request.query_params.get("user_uuid")
+    user_secret = request.query_params.get("user_secret_key")
+    user = User.objects.filter(uuid=user_uuid, secret_key=user_secret).first()
 
-            all_add = Advertisement.objects.filter(created_by=get_user).order_by("name").values(
-                "id", "uuid", "secret_key", "name", "image", "script_text",
-                "url", "approved_by_admin", "admin_approve_status" ,"description", "start_date", "end_date",
-                "created_by__first_name", "created_by__last_name"
-            )
+    if not user:
+        return Response(
+            {"status": status.HTTP_404_NOT_FOUND,
+             "data": [],
+             "message": "User not found",
+             "previous_page": None,
+             "next_page": None},
+            status=status.HTTP_404_NOT_FOUND
+        )
 
-            for ad in all_add:
-                # Ensure image exists before concatenating
-                if ad['image']:
-                    ad['image'] = base_url + ad['image']
-                if ad["end_date"]:
-                    if isinstance(ad["end_date"], datetime):  
-                        ad["end_date"] = ad["end_date"].date()  # Convert datetime to date
-                    elif isinstance(ad["end_date"], str):  
-                        try:
-                            ad["end_date"] = datetime.strptime(ad["end_date"], "%Y-%m-%d").date()  # Convert string to date
-                        except ValueError:
-                            ad["end_date"] = None  # Handle invalid date format
+    qs = Advertisement.objects.filter(created_by=user).order_by("-id")
+    paginator = PageNumberPagination()
+    paginator.page_size = 10
+    page = paginator.paginate_queryset(qs, request)  # returns a Page object list
 
-                # Now, compare properly
-                # print(ad["end_date"], today_date, ad["end_date"] < today_date)
-                ad["is_expire"] = ad["end_date"] < today_date
+    # Access the underlying Page object
+    page_obj = paginator.page
 
+    current = page_obj.number
+    prev_num = current - 1 if page_obj.has_previous() else None
+    next_num = current + 1 if page_obj.has_next() else None
 
-            paginator = PageNumberPagination()
-            paginator.page_size = 10  
-            result_page = paginator.paginate_queryset(all_add, request)
-            if not result_page:
-                data["status"] = status.HTTP_200_OK
-                data["count"] = 0
-                data["previous"] = None
-                data["next"] = None
-                data["data"] = []
-                data["message"] = "No Result found"
-            else:
-                paginated_response = paginator.get_paginated_response(result_page)
-                data["status"] = status.HTTP_200_OK
-                data["count"] = paginated_response.data["count"]
-                data["previous"] = paginated_response.data["previous"]
-                data["next"] = paginated_response.data["next"]
-                data["data"] = paginated_response.data["results"]
-                data["message"] = "Data found"
-                # data["status"], data["data"], data["message"] = status.HTTP_200_OK, all_add,"Data Found"
-        else:
-            data["status"], data["data"], data["message"] = status.HTTP_404_NOT_FOUND, "","User not found"
-    except Exception as e :
-        data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
-    return Response(data)
+    serializer = AdvertisementSerializer(page, many=True, context={"request": request})
+    return Response(
+        {
+            "status": status.HTTP_200_OK,
+            "count": paginator.page.paginator.count,
+            "previous_page": prev_num,
+            "next_page": next_num,
+            "data": serializer.data,
+            "message": "Data found"
+        },
+        status=status.HTTP_200_OK
+    )
+
 
 
 @api_view(('GET',))
@@ -643,8 +417,6 @@ def list_advertisement_for_app(request):
         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
     return Response(data)
 
-
-
 @api_view(['POST'])
 def delete_advertisement(request):
     try:
@@ -680,6 +452,232 @@ def delete_advertisement(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
+
+"""
+old and unuse api
+"""
+# Not using anymore
+@api_view(('GET',))
+def screen_type_list(request):
+    """
+    Displays the screens.
+    """
+    data = {'status':'','data':'','message':''}
+    try:        
+        user_uuid = request.GET.get('user_uuid')
+        user_secret_key = request.GET.get('user_secret_key')
+        check_user = User.objects.filter(uuid=user_uuid,secret_key=user_secret_key)
+        if check_user.exists() :
+            get_user = check_user.first()
+            screen_type = []
+            added_screen_lst = [i["screen"] for i in Advertisement.objects.all().values("screen")]
+
+            for _, value in SCREEN_TYPE:
+                if value in added_screen_lst :
+                    pass
+                else:
+                    screen_type.append(value)
+            # data["data"] = {"screen_type":["Team Create","Leauge Register"],"advertisement_type":["Image","Script"]}
+            data["data"] = {"screen_type":screen_type,"advertisement_type":["Image","Script"]}
+            data['status'], data['message'] = status.HTTP_200_OK, "Role Admin"
+            
+        else:
+            data["status"], data["data"], data["message"] = status.HTTP_404_NOT_FOUND, "","User not found"
+    except Exception as e :
+        data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
+    return Response(data)
+
+
+# Not using anymore
+@api_view(('POST',))
+def add_advertisement(request):
+    data = {'status':'', 'message':''}
+    try:        
+        user_uuid = request.data.get('user_uuid')
+        user_secret_key = request.data.get('user_secret_key')
+        advertisement_name = request.data.get('advertisement_name')
+        description = request.data.get('description')
+        image = request.FILES.get('image')
+        script_text = request.data.get('script_text')
+        url = request.data.get('url')
+        start_date = request.data.get('start_date')
+        end_date = request.data.get('end_date')
+
+        start_date = datetime.strptime(start_date, '%m/%d/%Y').strftime('%Y-%m-%d')
+        end_date = datetime.strptime(end_date, '%m/%d/%Y').strftime('%Y-%m-%d')
+
+        check_user = User.objects.filter(uuid=user_uuid,secret_key=user_secret_key)
+        if check_user.exists() :
+            get_user = check_user.first()
+            if get_user.is_admin or get_user.is_sponsor:
+                obj = GenerateKey()
+                advertisement_key = obj.gen_advertisement_key()
+                Advertisement.objects.create(
+                    secret_key=advertisement_key,
+                    name=advertisement_name,
+                    image=image,
+                    url=url,
+                    created_by_id=get_user.id,
+                    script_text=script_text,
+                    description = description,
+                    start_date=start_date,
+                    end_date=end_date
+                    )
+                data["status"], data["message"] = status.HTTP_200_OK,"Advertisement created successfully"
+            else:
+                data["status"], data["message"] = status.HTTP_404_NOT_FOUND,"User is not Admin or Sponsor"
+        else:
+            data["status"], data["message"] = status.HTTP_404_NOT_FOUND, "User not found"
+    except Exception as e :
+        data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
+    return Response(data)
+
+# Not using anymore
+@api_view(('POST',))
+def create_advertisement(request):
+    """
+    Creates an advertisement and charges fees for creating it. 
+    Only admin user or sponsor user can create an advertisement.
+    """
+    data = {'status':'', 'message':''}
+    try:        
+        user_uuid = request.data.get('user_uuid')
+        user_secret_key = request.data.get('user_secret_key')
+        advertisement_name = request.data.get('advertisement_name')
+        description = request.data.get('description')
+        image = request.FILES.get('image')
+        script_text = request.data.get('script_text')
+        url = request.data.get('url')
+        start_date = request.data.get('start_date')
+        end_date = request.data.get('end_date')
+        
+        start_date = datetime.strptime(start_date, '%m/%d/%Y').strftime('%Y-%m-%d')
+        end_date = datetime.strptime(end_date, '%m/%d/%Y').strftime('%Y-%m-%d')
+        
+        check_user = User.objects.filter(uuid=user_uuid,secret_key=user_secret_key)
+        if check_user.exists() :
+            get_user = check_user.first()
+            if get_user.is_admin or get_user.is_sponsor:
+                obj = GenerateKey()
+                advertisement_key = obj.gen_advertisement_key()
+                image_path = default_storage.save(image.name, ContentFile(image.read()))
+                make_request_data = {"secret_key":advertisement_key,"name":advertisement_name,"image":image_path,
+                                     "url":url,"created_by_id":get_user.id,"description":description,
+                                     "script_text":script_text,"start_date":start_date,"end_date":end_date}
+        
+                #json bytes
+                json_bytes = json.dumps(make_request_data).encode('utf-8')
+                
+                # Encode bytes to base64
+                my_data = base64.b64encode(json_bytes).decode('utf-8')
+                start_date = datetime.strptime(start_date, "%Y-%m-%d")
+                end_date = datetime.strptime(end_date, "%Y-%m-%d")
+                date_gap = end_date - start_date
+                gap_in_days = date_gap.days
+                duration = gap_in_days
+                charge_amount = int(duration)*int(settings.PER_DAY_CHARGE_FOR_AD)*100  
+                charge_for = "for_advertisement"          
+                product_name = "Payment For Adding Advertisement"
+                product_description = "Payment received by Pickleit"
+                stripe.api_key = settings.STRIPE_SECRET_KEY
+                
+                if get_user.stripe_customer_id :
+                    stripe_customer_id = get_user.stripe_customer_id
+                else:
+                    customer = stripe.Customer.create(email=get_user.email).to_dict()
+                    stripe_customer_id = customer["id"]
+                    get_user.stripe_customer_id = stripe_customer_id
+                    get_user.save() 
+                host = request.get_host()
+                current_site = f"{protocol}://{host}"
+                main_url = f"{current_site}/accessories/9671103725bb2e332ec083861133f7c0dad8e72b039e76bcdff4a102d453b66a/{charge_for}/{my_data}/"
+                product = stripe.Product.create(name=product_name,description=product_description,).to_dict()
+                price = stripe.Price.create(unit_amount=charge_amount,currency='usd',product=product["id"],).to_dict()
+                checkout_session = stripe.checkout.Session.create(
+                    customer=stripe_customer_id,
+                    line_items=[
+                        {
+                            'price': price["id"],
+                            'quantity': 1,
+                        },
+                    ],
+                    mode='payment',
+                    success_url= main_url + "{CHECKOUT_SESSION_ID}" + "/",
+                    cancel_url="https://example.com/success" + '/cancel.html',
+                )
+                return Response({"strip_url":checkout_session.url})
+            else:
+                data["status"], data["message"] = status.HTTP_404_NOT_FOUND,"User is not Admin or Sponsor"
+        else:
+            data["status"], data["message"] = status.HTTP_404_NOT_FOUND, "User not found"
+    except Exception as e :
+        data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
+    return Response(data)
+
+# Not using anymore
+def payment_for_advertisement(request,charge_for,my_data,checkout_session_id):
+    """
+    Take care of the payment part for creating an advertisement.
+    """
+    context ={}
+    try:        
+        stripe.api_key = settings.STRIPE_SECRET_KEY
+        pay = stripe.checkout.Session.retrieve(checkout_session_id).to_dict()    
+        stripe_customer_id = pay["customer"]
+        payment_status = pay["payment_status"]
+        expires_at = pay["expires_at"]
+        amount_total = float(pay["amount_total"]) / 100
+        payment_method_types = pay["payment_method_types"]
+        json_bytes = base64.b64decode(my_data)
+        request_data = json.loads(json_bytes.decode('utf-8'))
+        print(request_data)
+        expiry_date = request_data["end_date"]
+        payment_status = True if payment_status == "paid" else False
+       
+        check_customer = User.objects.filter(stripe_customer_id=stripe_customer_id).first()
+        obj = GenerateKey ()
+        secret_key = obj.gen_payment_key()
+        check_same_payment = PaymentDetails.objects.filter(payment_for_id=checkout_session_id,payment_for=charge_for)
+        if check_same_payment.exists() :
+            
+            get_same_payment = check_same_payment.first()
+            if get_same_payment.payment_status :
+                context["charge_for"] = get_same_payment.payment_for
+                context["expires_time"] = get_same_payment.expires_at
+                return render(request,"success_payment.html",context)
+            else:                
+                context["charge_for"] = get_same_payment.payment_for
+                return render(request,"failed_payment.html",context)
+        if not check_same_payment.exists(): 
+            save_payment = PaymentDetails(secret_key=secret_key,payment_for=charge_for,payment_for_id=checkout_session_id,payment_by=payment_method_types,
+                                        payment_amount=amount_total,payment_status=payment_status,stripe_response=pay,var_chargeamount=amount_total,
+                                        created_by_id=check_customer.id,expires_at=expiry_date)
+            save_payment.save()
+        
+        if payment_status is True:
+            ad = Advertisement.objects.create(
+                    secret_key=request_data["secret_key"],
+                    name=request_data["name"],
+                    image=request_data["image"],
+                    url=request_data["url"],
+                    created_by_id=request_data["created_by_id"],
+                    description=request_data["description"],
+                    script_text=request_data["script_text"],
+                    start_date=None,
+                    end_date=None,
+                    approved_by_admin=False)
+            save_payment.payment_for_ad = ad
+            save_payment.save()
+            context["charge_for"] = save_payment.payment_for
+            context["expires_time"] = save_payment.expires_at
+    
+            return render(request,"success_payment.html", context)
+        else: 
+            return render(request,"failed_payment.html")
+    except:
+        return render(request,"failed_payment.html")
+
+
 #not work
 @api_view(('POST',))
 def advertisement_approved_by_admin(request):
@@ -712,7 +710,6 @@ def advertisement_approved_by_admin(request):
     except Exception as e :
         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
     return Response(data)
-#advertisement part end
 
 
 # Not using
@@ -771,7 +768,7 @@ def add_charge_amount(request):
         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
     return Response(data)
 
-
+# Not using
 def format_duration(duration):
     days, seconds = duration.days, duration.seconds
     hours, remainder = divmod(seconds, 3600)
@@ -864,7 +861,7 @@ def edit_charge_amount(request):
         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
     return Response(data)
 
-
+# Not using
 @api_view(('POST',))
 def allow_to_make_organizer(request):
     """
@@ -1119,35 +1116,7 @@ def update_notifications(request):
     return Response(data)
 
 
-# @api_view(('POST',))
-# def allow_to_make_ambassador(request):
-#     responsee = {}
-#     try:
-#         user_uuid = request.data.get('user_uuid')
-#         user_secret_key = request.data.get('user_secret_key')
-#         player_uuid = request.data.get('player_uuid')
-#         player_secret_key = request.data.get('player_secret_key')
-#         check_user = User.objects.filter(uuid=user_uuid, secret_key=user_secret_key)
-#         check_payer = Player.objects.filter(uuid=player_uuid, secret_key=player_secret_key)
-#         print(check_payer)
-#         if check_user.exists() and check_payer.exists():
-#             user_instance = check_user.first()
-#             if user_instance.is_admin or user_instance.is_organizer:
-#                 payer=check_payer.first().player.id
-#                 User.objects.filter(id=int(payer)).update(is_ambassador = True)
-#                 player_name= check_payer.first().player.first_name
-#                 responsee = {'status': status.HTTP_200_OK, 'message': f'Now {player_name} is Ambassador'}
-#             else:
-#                 responsee = {'status': status.HTTP_200_OK, 'message': 'User not admin or organiger'}
-#         else:
-#             responsee = {'status': status.HTTP_400_BAD_REQUEST, 'message': 'Not found user or player'}     
-#         return Response(responsee)
-#     except Exception as e:
-#         responsee = {'status': status.HTTP_400_BAD_REQUEST, 'message': str(e)}
-#         return Response(responsee, status=responsee['status'])
-
-
-#change
+# Not using
 @api_view(('POST',))
 def allow_to_make_ambassador(request):
     """
@@ -1182,7 +1151,7 @@ def allow_to_make_ambassador(request):
         responsee = {'status': status.HTTP_400_BAD_REQUEST, 'message': str(e)}
         return Response(responsee, status=responsee['status'])
 
-
+# Not using
 @api_view(('POST',))
 def allow_to_make_ambassador_to_player(request):
     """
@@ -1212,7 +1181,7 @@ def allow_to_make_ambassador_to_player(request):
         responsee = {'status': status.HTTP_400_BAD_REQUEST, 'message': str(e)}
         return Response(responsee, status=responsee['status'])
 
-
+# Not using
 @api_view(('GET',))
 def ambassador_list(request):
     """
@@ -1284,7 +1253,7 @@ def ambassador_list(request):
         data = {'status': status.HTTP_400_BAD_REQUEST, 'data':[], 'message': str(e)}
         return Response(data, status=data['status'])
     
-
+# Not using
 @api_view(('GET',))
 def ambassador_profile_view(request):
     """
@@ -1324,8 +1293,7 @@ def ambassador_profile_view(request):
         return Response(responsee, status=responsee['status'])
     
 
-# Added    
-# Added    
+# Not using   
 @api_view(('POST',))
 def ambassador_follow_or_unfollow(request):
     """
@@ -1357,8 +1325,7 @@ def ambassador_follow_or_unfollow(request):
         data = {'status': status.HTTP_400_BAD_REQUEST, 'message': str(e)}
         return Response(data)
     
-
-
+# Not using
 @api_view(('GET',))
 def check_ambassador_following_or_not(request):
     """
@@ -1370,104 +1337,37 @@ def check_ambassador_following_or_not(request):
         user_secret_key = request.GET.get('user_secret_key')
         ambassador_uuid = request.GET.get('ambassador_uuid')
         ambassador_secret_key = request.GET.get('ambassador_secret_key')
-        check_user = User.objects.filter(uuid=user_uuid,secret_key=user_secret_key)
-        if check_user.exists():
-            get_user = check_user.first()
-            check_ambassador = User.objects.filter(uuid=ambassador_uuid, secret_key=ambassador_secret_key)
-            if check_ambassador.exists():
-                get_ambassador=check_ambassador.first()
-                check_ambassador_details = AmbassadorsDetails.objects.filter(ambassador=get_ambassador)
-                if check_ambassador_details.exists():
-                    get_ambassador_details = check_ambassador_details.first()
-                else:
-                    get_ambassador_details = AmbassadorsDetails.objects.create(ambassador=get_ambassador)
-                if get_user in get_ambassador_details.follower.all():
-                    all_followers = get_ambassador_details.follower.all().values("id","uuid","secret_key","username","email","first_name","last_name","phone","user_birthday","image","gender","street","city","state","country","postal_code","is_player","is_organizer","is_sponsor","is_ambassador","is_admin")
-                    data["status"] = status.HTTP_200_OK
-                    data["data"] ={"ambassador_followers": list(all_followers)}
-                    data["follow"] = True
-                    data["message"] = "You are following this ambassador."
-                else:
-                    data["status"] = status.HTTP_200_OK
-                    data["follow"] = False
-                    data["message"] = "You are not following this ambassador."
-            else:
-                data['status'] = status.HTTP_404_NOT_FOUND
-                data['message'] = "Ambassador not found."                
+        
+        user = get_object_or_404(User, uuid=user_uuid, secret_key=user_secret_key) 
+        profile = get_object_or_404(User, uuid=ambassador_uuid, secret_key=ambassador_secret_key)
+            
+        profile_player = get_object_or_404(Player, player_email=profile.email)    
+                
+                
+        if user in profile_player.follower.all():
+            all_followers = profile_player.follower.all().values("id","uuid","secret_key","username","email","first_name","last_name","phone","user_birthday","image","gender","street","city","state","country","postal_code","is_player","is_organizer","is_sponsor","is_ambassador","is_admin")
+            data["status"] = status.HTTP_200_OK
+            data["data"] ={"ambassador_followers": list(all_followers)}
+            data["follow"] = True
+            data["message"] = "You are following this player."
         else:
-            data['status'] = status.HTTP_401_UNAUTHORIZED
-            data['message'] = "Unauthorized access"
+            data["status"] = status.HTTP_200_OK
+            data["follow"] = False
+            data["message"] = "You are not following this player."
+            
         return Response(data)            
     except Exception as e:
         data = {'status': status.HTTP_400_BAD_REQUEST, 'message': str(e)}
         return Response(data)
 
-
+# Not using
 class AmbassadorsPostSerializer(serializers.ModelSerializer):
     class Meta:
         model = AmbassadorsPost
         fields = '__all__'
 
 
-# @api_view(['POST'])
-# def ambassadors_create_post(request):
-#     response_data = {}
-#     try:
-#         user_uuid = request.data.get('user_uuid')
-#         user_secret_key = request.data.get('user_secret_key')
-#         post_text = request.data.get('post_text')
-        
-#         # Access the uploaded file
-#         file = request.FILES.get("file")
-        
-#         if file:  # Check if the file is provided
-#             # Get the MIME type from the file itself
-#             mime_type = file.content_type
-            
-#             # if mime_type.startswith('video'):
-#             if mime_type == 'video/mp4':
-#                 # Check if the user exists
-#                 user_instance = get_object_or_404(User, uuid=user_uuid, secret_key=user_secret_key)
-#                 player_instance = Player.objects.filter(player=user_instance)
-#                 # print(user_instance)
-#                 # print(player_instance)
-#                 # print(user_instance.is_ambassador)
-#                 # Check if the user is an ambassador
-#                 if user_instance.is_ambassador and player_instance.exists():
-#                     # Create the post
-#                     obj = GenerateKey()  # Assuming this is a function you have defined elsewhere
-#                     secret_key = obj.gen_ambassadorsPost_key()
-#                     post = AmbassadorsPost.objects.create(
-#                         secret_key=secret_key,
-#                         file=file, 
-#                         post_text=post_text, 
-#                         created_by=user_instance
-#                     )
-#                     # Save the file reference in the database
-#                     post.save()
-#                     serializer = AmbassadorsPostSerializer(post)
-#                     response_data["status"] = status.HTTP_200_OK
-#                     response_data["message"] = "Post successfully uploaded"
-#                     response_data["data"] = serializer.data
-#                 else:
-#                     response_data["status"] = status.HTTP_400_BAD_REQUEST
-#                     response_data["data"] = []
-#                     response_data["message"] = "This user is not an ambassador or not in player list"
-#             else:
-#                 response_data["status"] = status.HTTP_400_BAD_REQUEST
-#                 response_data["data"] = []
-#                 response_data["message"] = "Uploaded file is not a video"
-#         else:
-#             response_data["status"] = status.HTTP_400_BAD_REQUEST
-#             response_data["data"] = []
-#             response_data["message"] = "File not provided"
-            
-#         return Response(response_data)
-#     except Exception as e:
-#         response_data = {'status': status.HTTP_400_BAD_REQUEST, 'message': str(e)}
-#         return Response(response_data, status=response_data['status'])
-
-
+# Not using
 @api_view(['POST'])
 def ambassadors_create_post(request):
     """
@@ -1522,7 +1422,7 @@ def ambassadors_create_post(request):
     except Exception as e:
         return Response({'status': status.HTTP_400_BAD_REQUEST, 'message': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-
+# Not using
 @api_view(('GET',))
 def ambassadors_view(request):
     """
@@ -1563,7 +1463,7 @@ def ambassadors_view(request):
         response_data = {'status': status.HTTP_400_BAD_REQUEST, 'data': [], 'message': str(e)}
         return Response(response_data)
 
-
+# Not using
 @api_view(('POST',))
 def ambassadors_edit_post(request):
     """
@@ -1606,7 +1506,7 @@ def ambassadors_edit_post(request):
         response_data = {'status': status.HTTP_400_BAD_REQUEST, 'message': str(e)}
         return Response(response_data)
 
-
+# Not using
 @api_view(('POST',))
 def ambassadors_delete_post(request, del_id):
     """
@@ -1630,7 +1530,7 @@ def ambassadors_delete_post(request, del_id):
         response_data = {'status': status.HTTP_400_BAD_REQUEST, 'message': str(e)}
         return Response(response_data)
 
-
+# Not using
 @api_view(('POST',))
 def admin_allow_ambassadors_post(request):
     """
@@ -1666,7 +1566,7 @@ def admin_allow_ambassadors_post(request):
         response_data = {'status': status.HTTP_400_BAD_REQUEST, 'message': str(e)}
         return Response(response_data)
 
-
+# Not using
 @api_view(('GET',))
 def ambassadors_view_all_allow_post(request):
     """
@@ -1726,267 +1626,7 @@ def ambassadors_view_all_allow_post(request):
         response_data = {'status': status.HTTP_400_BAD_REQUEST, 'result': [], 'message': str(e)}
         return Response(response_data)
 
-
-# @api_view(('GET',))
-# def ambassadors_view_all_allow_post(request):
-#     response_data = {}
-#     try:
-#         user_uuid = request.GET.get('user_uuid')
-#         user_secret_key = request.GET.get('user_secret_key')
-#         check_user = User.objects.filter(uuid=user_uuid, secret_key=user_secret_key)
-        
-#         # Get the protocol and host from the request
-#         protocol = 'https' if request.is_secure() else 'http'
-#         host = request.get_host()
-        
-#         # Construct the complete URL for media files
-#         media_base_url = f"{protocol}://{host}"
-        
-#         if check_user.exists():
-#             data = AmbassadorsPost.objects.all()
-#             paginator = PageNumberPagination()
-#             paginator.page_size = 2  # Adjust as needed
-#             result_page = paginator.paginate_queryset(data, request)
-#             serialized_data = AmbassadorsPostSerializer(result_page, many=True)
-            
-#             for post in serialized_data.data:
-#                 if post['file']:
-#                     # Prepare file data in the format you specified
-#                     filename = post['file'].split("/")[-1]
-#                     file_path = post['file'].replace(media_base_url, '')
-#                     path = f".{file_path}"
-#                     file_data = [(filename, open(path, 'rb'), 'application/octet-stream')]
-#                     # print(file_data)
-#                     post['file_data_str'] = str(file_data)
-                    
-#                 # Adjust user image URL
-#                 user_details = User.objects.filter(id=post['created_by']).values("uuid", "secret_key", "first_name", "last_name", "image")
-#                 for user in user_details:
-#                     user['image'] = media_base_url + '/media/' + user['image']
-#                 post['created_by'] = list(user_details)
-                
-#                 # Calculate total likes count
-#                 post['total_likes_count'] = len(post['likes'])
-            
-#             return paginator.get_paginated_response(serialized_data.data)
-#         else:
-#             response_data["status"] = status.HTTP_400_BAD_REQUEST
-#             response_data["result"] = []
-#             response_data["message"] = "User does not exist"
-#             return Response(response_data)
-#     except Exception as e:
-#         response_data = {'status': status.HTTP_400_BAD_REQUEST, 'result': [], 'message': str(e)}
-#         return Response(response_data)
-
-
-# ##piu
-# @api_view(('POST',))
-# def add_advertiser_facility(request):
-#     """
-#     Is used for a sponsor to add any advertiser facility.
-#     """
-#     data = {}
-#     try:
-#         user_uuid = request.data.get('user_uuid')
-#         user_secret_key = request.data.get('user_secret_key')
-        
-#         facility_name = request.data.get('facility_name')
-#         facility_type = request.data.get('facility_type')
-#         court_type = request.data.get('court_type')
-#         membership_type = request.data.get('membership_type')
-#         number_of_courts = request.data.get('number_of_courts')
-#         complete_address = request.data.get('complete_address')
-#         check_user = User.objects.filter(uuid=user_uuid, secret_key=user_secret_key)
-#         if check_user.exists():
-#             get_user = check_user.first()
-#             if get_user.is_sponsor == True:
-#                 full_address = complete_address
-#                 state, country, pincode, latitude , longitude = get_address_details(full_address, api_key)
-
-#                 obj = GenerateKey()
-#                 facility_key = obj.gen_facility_key()
-#                 facility = AdvertiserFacility.objects.create(secret_key=facility_key, facility_name=facility_name, facility_type=facility_type, court_type=court_type, membership_type=membership_type, number_of_courts=number_of_courts, complete_address=complete_address, created_by=get_user)
-#                 facility.latitude = latitude
-#                 facility.longitude = longitude
-#                 facility.save()
-#                 data['status'], data['message'] = status.HTTP_201_CREATED, "Facility created successfully."
-#             else:
-#                 data['status'], data['message'] = status.HTTP_404_NOT_FOUND, "User is not a sponsor, so does not have permission."
-#         else:
-#             data['status'], data['message'] = status.HTTP_404_NOT_FOUND, "User not found."
-#     except Exception as e:
-#         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
-#     return Response(data)
-
-
-# @api_view(('GET',))
-# def advertiser_facility_list(request):
-#     """
-#     Displays the list of all facilities added by sponsor.
-#     """
-#     data = {}
-#     try:
-#         user_uuid = request.GET.get('user_uuid')
-#         user_secret_key = request.GET.get('user_secret_key')
-#         check_user = User.objects.filter(uuid=user_uuid, secret_key=user_secret_key)        
-#         if check_user.exists():
-#             data['data'] = AdvertiserFacility.objects.filter(created_by=check_user.first()).values()
-#             data['status'] = status.HTTP_200_OK
-#             data['message'] = "Data found."
-#         else:
-#             data['status'], data['message'] = status.HTTP_404_NOT_FOUND, "User not found."
-#     except Exception as e:
-#         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
-#     return Response(data)
-
-
-# @api_view(('GET',))
-# def advertiser_facility_list_for_all(request):
-#     """
-#     Displays the list of all advertiser facilities.
-#     """
-#     data = {}
-#     try:
-#         data['data'] = AdvertiserFacility.objects.all().values()
-#         data['status'] = status.HTTP_200_OK
-#         data['message'] = "Data found."
-#     except Exception as e:
-#         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
-#     return Response(data)
-
-
-
-# @api_view(('POST',))
-# def edit_advertiser_facility(request):
-#     """
-#     Is used for sponsor to edit the details of an advertiser facility.
-#     """
-#     data = {}
-#     try:
-#         user_uuid = request.data.get('user_uuid')
-#         user_secret_key = request.data.get('user_secret_key')
-#         facility_uuid = request.data.get('facility_uuid')
-#         facility_secret_key = request.data.get('facility_secret_key')        
-#         facility_name = request.data.get('facility_name')
-#         facility_type = request.data.get('facility_type')
-#         court_type = request.data.get('court_type')
-#         membership_type = request.data.get('membership_type')
-#         number_of_courts = request.data.get('number_of_courts')
-#         check_user = User.objects.filter(uuid=user_uuid, secret_key=user_secret_key)        
-#         if check_user.exists():
-#             get_user = check_user.first()
-#             if get_user.is_sponsor == True:
-#                 check_facility = AdvertiserFacility.objects.filter(uuid=facility_uuid, secret_key=facility_secret_key)
-#                 if check_facility.exists():
-#                     check_facility.update(facility_name=facility_name, facility_type=facility_type, court_type=court_type, membership_type=membership_type, number_of_courts=number_of_courts)
-#                     data['status'], data['message'] = status.HTTP_200_OK, "Facility edited successfully."
-#                 else:
-#                     data['status'], data['message'] = status.HTTP_404_NOT_FOUND, "Facility not found."
-#             else:
-#                 data['status'], data['message'] = status.HTTP_404_NOT_FOUND, "User is not a sponsor, so does not have permission.."
-#         else:
-#             data['status'], data['message'] = status.HTTP_404_NOT_FOUND, "User not found."
-#     except Exception as e:
-#         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
-#     return Response(data)
-
-
-# @api_view(('POST',))
-# def delete_advertiser_facility(request):
-#     """
-#     Is used for sponsor to delete an advertiser facility.
-#     """
-#     data = {}
-#     try:
-#         user_uuid = request.data.get('user_uuid')
-#         user_secret_key = request.data.get('user_secret_key')
-#         facility_uuid = request.data.get('facility_uuid')
-#         facility_secret_key = request.data.get('facility_secret_key')
-#         check_user = User.objects.filter(uuid=user_uuid, secret_key=user_secret_key)        
-#         if check_user.exists():
-#             get_user = check_user.first()
-#             if get_user.is_sponsor == True:
-#                 check_facility = AdvertiserFacility.objects.filter(uuid=facility_uuid, secret_key=facility_secret_key)
-#                 if check_facility.exists():
-#                     get_facility = check_facility.first()
-#                     get_facility.delete()
-#                     data["status"], data["message"] = status.HTTP_204_NO_CONTENT, "Facility deleted successfully."
-#                 else:
-#                     data["status"], data["message"] = status.HTTP_404_NOT_FOUND, "Facility not found."
-#             else:
-#                 data['status'], data['message'] = status.HTTP_404_NOT_FOUND, "User is not a sponsor, so does not have permission."
-#         else:
-#             data['status'], data['message'] = status.HTTP_404_NOT_FOUND, "User not found."
-#     except Exception as e:
-#         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
-#     return Response(data)
-
-
-
-# @api_view(('GET',))
-# def view_advertiser_facility(request):
-#     """
-#     Displays the details of an advertiser facility.
-#     """
-#     data = {}
-#     try:
-#         user_uuid = request.GET.get('user_uuid')
-#         user_secret_key = request.GET.get('user_secret_key')
-#         facility_uuid = request.GET.get('facility_uuid')
-#         facility_secret_key = request.GET.get('facility_secret_key')
-#         check_user = User.objects.filter(uuid=user_uuid, secret_key=user_secret_key) 
-#         if check_user.exists():
-#             check_facility = AdvertiserFacility.objects.filter(uuid=facility_uuid, secret_key=facility_secret_key)
-#             if check_facility.exists():
-#                 data['status'] = status.HTTP_200_OK
-#                 data['data'] = check_facility.values()                
-#                 data['message'] = "Data found"
-#             else:
-#                 data['status'] = status.HTTP_404_NOT_FOUND
-#                 data['message'] = "Facility not found"
-#         else:
-#             data['status'], data['message'] = status.HTTP_404_NOT_FOUND, "User not found."
-#     except Exception as e:
-#         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
-#     return Response(data)
-
-
-# def cron_job():
-#     # Your code for the periodic task goes here
-#     # For example, you might update a database record or send an email
-#     check_organizer = User.objects.filter(is_organizer=True)
-#     for i in range(len(check_organizer)):
-#         get_organizer = check_organizer[i]
-#         expires_time = datetime.fromisoformat(str(get_organizer.is_organizer_expires_at))
-#         current_time = datetime.fromisoformat(str(datetime.now())+ "+00:00")
-#         if expires_time < current_time:
-#             get_organizer.is_organizer = False
-#             get_organizer.is_organizer_expires_at = None
-#             get_organizer.save()
-#             print(f"expires_time - {expires_time} is earlier than current_time - {current_time}")
-#         else:
-#             print(f"{expires_time} is not earlier than {current_time}")
-#     print("cron_job..............................cron_job")
-
-# schedule.every(1).seconds.do(cron_job)
-
-# def cron_job_wrapper():
-#     while True:
-#         schedule.run_pending()
-#         time.sleep(55)
-
-# # Run the cron_job_wrapper in a separate thread
-# cron_thread = threading.Thread(target=cron_job_wrapper)
-# cron_thread.daemon = True
-# cron_thread.start()
-
-# # This part will only be executed when using the development server.
-# if __name__ == "__main__":
-#     # Start the development server
-#     from django.core.management import execute_from_command_line
-#     execute_from_command_line(["manage.py", "runserver"])
-
-
+# Not using
 @api_view(('POST',))
 def ambassador_post_like_dislike(request):
     """
@@ -2018,7 +1658,7 @@ def ambassador_post_like_dislike(request):
         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
     return Response(data)
 
-
+# Not using
 @api_view(('GET',))
 def chech_post_liked_or_not(request):
     """
@@ -2051,7 +1691,7 @@ def chech_post_liked_or_not(request):
     return Response(data)
 
 
-## #update #Riju
+# Not using
 @api_view(('POST',))
 def add_advertiser_facility(request):
     """
@@ -2096,7 +1736,7 @@ def add_advertiser_facility(request):
         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
     return Response(data)
 
-
+# Not using
 @api_view(('GET',))
 def advertiser_facility_list(request):
     """
@@ -2120,7 +1760,7 @@ def advertiser_facility_list(request):
         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
     return Response(data)
 
-
+# Not using
 @api_view(('GET',))
 def advertiser_facility_list_for_all(request):
     """
@@ -2137,8 +1777,7 @@ def advertiser_facility_list_for_all(request):
         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
     return Response(data)
 
-
-
+# Not using
 @api_view(('POST',))
 def edit_advertiser_facility(request):
     """
@@ -2186,7 +1825,7 @@ def edit_advertiser_facility(request):
         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
     return Response(data)
 
-
+# Not using
 @api_view(('POST',))
 def delete_advertiser_facility(request):
     """
@@ -2217,7 +1856,7 @@ def delete_advertiser_facility(request):
         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
     return Response(data)
 
-
+# Not using
 @api_view(('POST',))
 def delete_facility_image(request):
     """
@@ -2248,7 +1887,7 @@ def delete_facility_image(request):
         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
     return Response(data)
 
-
+# Not using
 @api_view(('GET',))
 def view_advertiser_facility(request):
     """
@@ -2279,4 +1918,518 @@ def view_advertiser_facility(request):
         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
     return Response(data)
 
-## #update #Riju
+
+################ Reels part new updated ####################
+def extract_tags(text):
+    return re.findall(r'#\w+', text)
+
+def check_tags(tag_list):
+    try:
+        for tag in tag_list:
+            get_tag = Tags.objects.filter(name=tag).first()
+            if get_tag:
+                get_tag.number_of_use = get_tag.number_of_use + 1
+                get_tag.save()
+            else:
+                Tags.objects.create(name=tag, number_of_use=1)
+        return True
+    except:
+        return False
+
+
+@api_view(['POST'])
+def create_post(request):
+    """
+    Is used for an ambassador to add a post.
+    Only allowed if user is subscribed to Pro or Enterprise plan.
+    """
+    try:
+        # Step 1: Extract input
+        user_uuid = request.data.get('user_uuid')
+        user_secret_key = request.data.get('user_secret_key')
+        post_text = request.data.get('post_text')
+        file = request.FILES.get("file")
+        thumbnail = request.FILES.get("thumbnail")
+        tags = request.data.get("tags", None)
+        if tags:
+            tag_list = extract_tags(tags)
+        else:
+            tag_list = []
+
+        tag_json = {"tag_list":tag_list}
+        check_tags_entry = check_tags(tag_list)
+        # Step 2: Validate user credentials
+        user_instance = get_object_or_404(User, uuid=user_uuid, secret_key=user_secret_key)
+
+        # Step 3: Check subscription using get_object_or_404
+        subscription = get_object_or_404(
+            Subscription,
+            user=user_instance,
+            is_active=True,
+            end_date__gte=now(),
+            plan__name__in=["Pro Version", "Enterprise Version"]
+        )
+
+        # Step 4: Validate file input
+        if not file or not thumbnail:
+            return Response({'status': status.HTTP_400_BAD_REQUEST, 'message': 'File and thumbnail not provided'}, status=status.HTTP_400_BAD_REQUEST)
+
+        detected_mime_type, _ = mimetypes.guess_type(file.name)
+        if not detected_mime_type or not detected_mime_type.startswith('video/'):
+            return Response({'status': status.HTTP_400_BAD_REQUEST, 'message': 'Uploaded file is not a video'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Step 5: Upload to S3
+        uploaded_url = upload_file_to_s3(file)
+        thumbnail_url = upload_file_to_s3(thumbnail)
+
+        if not uploaded_url or not thumbnail_url:
+            return Response({'status': status.HTTP_400_BAD_REQUEST, 'message': 'Failed to upload to S3'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Step 6: Create the post
+        secret_key = GenerateKey().gen_ambassadorsPost_key()
+        post = AmbassadorsPost.objects.create(
+            secret_key=secret_key,
+            file=uploaded_url,
+            thumbnail=thumbnail_url,
+            post_text=post_text,
+            created_by=user_instance,
+            tags = tag_list
+        )
+
+        serializer = AmbassadorsPostSerializer(post)
+        return Response({'status': status.HTTP_200_OK, 'message': 'Post successfully uploaded', 'data': serializer.data}, status=status.HTTP_200_OK)
+
+    except FileNotFoundError:
+        return Response({'status': status.HTTP_400_BAD_REQUEST, 'message': 'File not found'}, status=status.HTTP_400_BAD_REQUEST)
+
+    except Exception as e:
+        return Response({'status': status.HTTP_400_BAD_REQUEST, 'message': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+class PostUserSerializer(serializers.ModelSerializer):
+    username = serializers.SerializerMethodField()
+    player_uuid = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = ['id', 'uuid', 'secret_key', "username",'first_name', 'last_name', "image", 'player_uuid']
+
+    def get_username(self, obj):
+        return f"{obj.first_name} {obj.last_name}".strip()
+    
+    def get_player_uuid(self, obj):
+        # Check if a Player instance is related to the user
+        player_qs = obj.player.all()  # related_name='player' on the ForeignKey
+        if player_qs.exists():
+            return str(player_qs.first().uuid)
+        return None
+
+class PostCommentSerializer(serializers.ModelSerializer):
+    user = PostUserSerializer(read_only=True)
+
+    class Meta:
+        model = PostComment
+        fields = ['id', 'post', 'user', 'comment_text', 'parent_comment', 'created_at']
+
+class PostDetailsSerializer(serializers.ModelSerializer):
+    created_by = PostUserSerializer()
+    comments = PostCommentSerializer(many=True, read_only=True, source="reel_comment")
+    is_liked = serializers.SerializerMethodField()  # Field to check if the user liked the post
+    thumbnail = serializers.SerializerMethodField()
+    number_like = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AmbassadorsPost
+        fields = [
+            'id',
+            'uuid',
+            'secret_key',
+            'created_by',
+            'post_text',
+            'number_comment',
+            'tags',
+            'number_like',
+            'created_at',
+            'file',
+            'thumbnail',
+            'comments',
+            'likes',
+            'is_liked'
+        ]
+
+    def get_is_liked(self, obj):
+        """Check if the user with given user_uuid has liked the post"""
+        user_uuid = self.context.get('user_uuid')
+        
+        if user_uuid:
+            user = User.objects.filter(uuid=user_uuid).first()
+            if user:
+                
+                return user in obj.likes.all()
+        return False
+
+    def get_number_like(self, obj):
+        return obj.likes.count()
+    
+    def get_thumbnail(self, obj):
+        return obj.thumbnail or "https://pickleitmedia.s3.amazonaws.com/Reels/PickleIt_logo.png_7908482601214a24bf2f1bbbb3432381.png"
+
+@api_view(('GET',))
+def view_post(request):
+    """
+    Is used to view the details of a post.
+    """
+    user_uuid = request.GET.get('user_uuid')
+    user_secret_key = request.GET.get('user_secret_key')
+    post_id = request.GET.get('post_id')
+
+    # Validate user
+    user_instance = get_object_or_404(User, uuid=user_uuid, secret_key=user_secret_key)
+    post = get_object_or_404(AmbassadorsPost, id=int(post_id))
+    serializer = PostDetailsSerializer(post, context={'user_uuid': user_uuid})
+    return Response(serializer.data)
+
+class PostListSerializer(serializers.ModelSerializer):
+   
+    created_by = PostUserSerializer(read_only=True)  # Nested user serializer
+    is_liked = serializers.SerializerMethodField()  # Field to check if the user liked the post
+    thumbnail = serializers.SerializerMethodField()
+    total_likes_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AmbassadorsPost
+        fields = ['id', 'uuid', 'secret_key','created_by', 'post_text', 'number_comment','tags', 'total_likes_count', 'created_at', 'file', 'thumbnail', 'likes', 'is_liked']
+
+    def get_is_liked(self, obj):
+        """Check if the user with given user_uuid has liked the post"""
+        user_uuid = self.context.get('user_uuid')
+        
+        if user_uuid:
+            user = User.objects.filter(uuid=user_uuid).first()
+            if user:
+                
+                return user in obj.likes.all()
+        return False
+    
+    def get_total_likes_count(self, obj):
+        return obj.likes.count()
+
+    def get_thumbnail(self, obj):
+        return obj.thumbnail or "https://pickleitmedia.s3.amazonaws.com/Reels/PickleIt_logo.png_7908482601214a24bf2f1bbbb3432381.png"
+    
+class AmbassadorPostPagination(PageNumberPagination):
+    page_size = 5  # Default items per page
+    page_size_query_param = 'per_page'  # Allow clients to set page size via query param
+    max_page_size = 100  # Maximum items per page
+
+    def get_paginated_response(self, data):
+        # Get next and previous links
+        next_link = self.get_next_link()
+        previous_link = self.get_previous_link()
+        
+        # Force HTTPS in links if they exist
+        if next_link:
+            next_link = next_link.replace('http://', 'https://')
+        if previous_link:
+            previous_link = previous_link.replace('http://', 'https://')
+        
+        return Response({
+            'count': self.page.paginator.count,
+            'next': next_link,
+            'previous': previous_link,
+            'results': data
+        })
+    
+@api_view(['GET'])
+def post_list(request):
+    """
+    Displays the list of all posts (paginated).
+    Requires valid user credentials to get `is_liked` context.
+    """
+    try:
+        user_uuid = request.GET.get('user_uuid')
+        user_secret_key = request.GET.get('user_secret_key')
+
+        # Validate user
+        user_instance = get_object_or_404(User, uuid=user_uuid, secret_key=user_secret_key)
+
+        # Fetch all posts, shuffle order
+        posts = list(AmbassadorsPost.objects.all())
+        random.shuffle(posts)
+
+        # Paginate posts
+        paginator = AmbassadorPostPagination()
+        result_page = paginator.paginate_queryset(posts, request)
+
+        # Serialize with context for is_liked logic
+        serializer = PostListSerializer(result_page, many=True, context={'user_uuid': user_uuid})
+
+        return paginator.get_paginated_response(serializer.data)
+
+    except Exception as e:
+        return Response({
+            'status': status.HTTP_400_BAD_REQUEST,
+            'result': [],
+            'message': str(e)
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET'])
+def my_post_list(request):
+    try:
+        user_uuid = request.GET.get('user_uuid')
+        user_secret_key = request.GET.get('user_secret_key')
+
+        # Validate user
+        user_instance = get_object_or_404(User, uuid=user_uuid, secret_key=user_secret_key)
+
+        # Fetch all posts, shuffle order
+        posts = AmbassadorsPost.objects.filter(created_by=user_instance).order_by('-created_at')
+        
+
+        # Paginate posts
+        paginator = AmbassadorPostPagination()
+        result_page = paginator.paginate_queryset(posts, request)
+
+        # Serialize with context for is_liked logic
+        serializer = PostListSerializer(result_page, many=True, context={'user_uuid': user_uuid})
+
+        return paginator.get_paginated_response(serializer.data)
+
+    except Exception as e:
+        return Response({
+            'status': status.HTTP_400_BAD_REQUEST,
+            'result': [],
+            'message': str(e)
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+@api_view(('POST',))
+def edit_post(request):
+    """
+    Is used for an user to edit his post.
+    """
+ 
+    try:        
+        user_uuid = request.data.get('user_uuid')
+        user_secret_key = request.data.get('user_secret_key')
+        post_id = request.data.get('post_id')
+        file = request.FILES.get("file")
+        thumbnail = request.FILES.get("thumbnail")
+        post_text = request.data.get('post_text')
+        tags = request.data.get("tags", None)
+        if tags:
+            tag_list = extract_tags(tags)
+        else:
+            tag_list = []
+
+        tag_json = {"tag_list":tag_list}
+        check_tags_entry = check_tags(tag_list)
+        # Step 2: Validate user credentials
+        user_instance = get_object_or_404(User, uuid=user_uuid, secret_key=user_secret_key)
+        post_instance = get_object_or_404(AmbassadorsPost, id=int(post_id), created_by=user_instance)
+
+        # Step 3: Check subscription using get_object_or_404
+        subscription = get_object_or_404(
+            Subscription,
+            user=user_instance,
+            is_active=True,
+            end_date__gte=now(),
+            plan__name__in=["Pro Version", "Enterprise Version"]
+        )
+
+        if file:
+            detected_mime_type, _ = mimetypes.guess_type(file.name)
+            if not detected_mime_type or not detected_mime_type.startswith('video/'):
+                return Response({
+                    'status': status.HTTP_400_BAD_REQUEST,
+                    'message': 'Uploaded file is not a video'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            uploaded_url = upload_file_to_s3(file)
+            if not uploaded_url:
+                return Response({
+                    'status': status.HTTP_400_BAD_REQUEST,
+                    'message': 'Failed to upload video file to S3'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            post_instance.file = uploaded_url
+
+        if thumbnail:
+            thumbnail_url = upload_file_to_s3(thumbnail)
+            if not thumbnail_url:
+                return Response({
+                    'status': status.HTTP_400_BAD_REQUEST,
+                    'message': 'Failed to upload thumbnail to S3'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            post_instance.thumbnail = thumbnail_url
+
+        # Step 4: Always update text if provided
+        if post_text:
+            post_instance.post_text = post_text
+        if tags:
+            post_instance.tags = tag_list
+        post_instance.save()
+
+        serializer = AmbassadorsPostSerializer(post_instance)
+        return Response({'status': status.HTTP_200_OK, 'message': 'Post successfully updated', 'data': serializer.data}, status=status.HTTP_200_OK)
+
+    except FileNotFoundError:
+        return Response({'status': status.HTTP_400_BAD_REQUEST, 'message': 'File not found'}, status=status.HTTP_400_BAD_REQUEST)
+
+    except Exception as e:
+        return Response({'status': status.HTTP_400_BAD_REQUEST, 'message': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(('POST',))
+def delete_post(request):
+    """
+    Is used for an user to delete his post.
+    """
+
+    try:     
+        user_uuid = request.data.get('user_uuid')
+        user_secret_key = request.data.get('user_secret_key')
+        post_id = request.data.get('post_id')   
+        
+        # Step 2: Validate user credentials
+        user_instance = get_object_or_404(User, uuid=user_uuid, secret_key=user_secret_key)
+        post_instance = get_object_or_404(AmbassadorsPost, id=int(post_id), created_by=user_instance)
+        
+        post_instance.delete()
+        return Response({'status': status.HTTP_200_OK, 'message': 'Post successfully deleted.'}, status=status.HTTP_200_OK)    
+
+    except Exception as e:
+        return Response({'status': status.HTTP_400_BAD_REQUEST, 'message': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    
+@api_view(['POST'])
+def generate_video_presigned_url(request):
+    try:
+        file_name = request.data.get("file_name")
+        file_type = request.data.get("file_type")  # e.g., 'video/mp4'
+
+        if not file_name or not file_type:
+            return Response({'message': 'Missing video file info'}, status=400)
+
+        s3_client = boto3.client(
+            's3',
+            aws_access_key_id=settings.ACCESS_KEY_ID,
+            aws_secret_access_key=settings.SECRET_ACCESS_KEY
+        )
+
+        unique_id = uuid.uuid4().hex
+        key = f"{settings.FOLDER_NAME}/{unique_id}_{file_name}"
+
+        upload_url = s3_client.generate_presigned_url(
+            ClientMethod='put_object',
+            Params={'Bucket': settings.BUCKET_NAME, 'Key': key, 'ContentType': file_type},
+            ExpiresIn=3600
+        )
+
+        return Response({
+            'status': 200,
+            'video': {
+                'upload_url': upload_url,
+                'file_url': f"https://{settings.BUCKET_NAME}.s3.amazonaws.com/{key}"
+            }
+        })
+
+    except Exception as e:
+        return Response({'status': 400, 'message': str(e)}, status=400)
+    
+
+@api_view(['POST'])
+def generate_thumbnail_presigned_url(request):
+    try:
+        thumbnail_name = request.data.get("thumbnail_name")
+        thumbnail_type = request.data.get("thumbnail_type")  # e.g., 'image/jpeg'
+
+        if not thumbnail_name or not thumbnail_type:
+            return Response({'message': 'Missing thumbnail info'}, status=400)
+
+        s3_client = boto3.client(
+            's3',
+            aws_access_key_id=settings.ACCESS_KEY_ID,
+            aws_secret_access_key=settings.SECRET_ACCESS_KEY
+        )
+
+        unique_id = uuid.uuid4().hex
+        key = f"{settings.FOLDER_NAME}/{unique_id}_{thumbnail_name}"
+
+        upload_url = s3_client.generate_presigned_url(
+            ClientMethod='put_object',
+            Params={'Bucket': settings.BUCKET_NAME, 'Key': key, 'ContentType': thumbnail_type},
+            ExpiresIn=3600
+        )
+
+        return Response({
+            'status': 200,
+            'thumbnail': {
+                'upload_url': upload_url,
+                'file_url': f"https://{settings.BUCKET_NAME}.s3.amazonaws.com/{key}"
+            }
+        })
+
+    except Exception as e:
+        return Response({'status': 400, 'message': str(e)}, status=400)
+
+
+@api_view(['POST'])
+def create_post_new(request):
+    try:
+        user_uuid = request.data.get('user_uuid')
+        user_secret_key = request.data.get('user_secret_key')
+        post_text = request.data.get('post_text')
+        file_url = request.data.get("file")
+        thumbnail_url = request.data.get("thumbnail")
+
+        if not file_url or not thumbnail_url:
+            return Response({'status': 400, 'message': 'Missing uploaded file URLs'}, status=400)
+
+        user_instance = get_object_or_404(User, uuid=user_uuid, secret_key=user_secret_key)
+        # Step 3: Check subscription using get_object_or_404
+        subscription = get_object_or_404(
+            Subscription,
+            user=user_instance,
+            is_active=True,
+            end_date__gte=now(),
+            plan__name__in=["Pro Version", "Enterprise Version"]
+        )
+
+        secret_key = GenerateKey().gen_ambassadorsPost_key()
+        post = AmbassadorsPost.objects.create(
+            secret_key=secret_key,
+            file=file_url,
+            thumbnail=thumbnail_url,
+            post_text=post_text,
+            created_by=user_instance
+        )
+
+        serializer = AmbassadorsPostSerializer(post)
+        return Response({'status': 200, 'message': 'Post created successfully', 'data': serializer.data}, status=200)
+
+    except Exception as e:
+        return Response({'status': 400, 'message': str(e)}, status=400)
+
+###tags search
+class TagSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Tags
+        fields = ['id', 'name', 'number_of_use']
+
+@api_view(['GET'])
+def tag_search(request):
+    """
+    GET /api/tags/?search=foo
+    Returns all tags whose name contains "foo" (case-insensitive), ordered by number_of_use desc.
+    If no `search` param is provided, returns all tags ordered by popularity.
+    """
+    search_term = request.GET.get('search')
+    qs = Tags.objects.all()
+    if search_term:
+        qs = qs.filter(name__icontains=search_term)
+    qs = qs.order_by('-number_of_use')
+    serializer = TagSerializer(qs, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+
+

@@ -27,26 +27,12 @@ class Club(models.Model):
     unit = models.CharField(max_length=12, choices=curency, default="USD")
     overall_rating = models.FloatField(null=True, blank=True, default=0.0)
 
+    def clean(self):
+        if Club.objects.filter(user=self.user, name__iexact=self.name).exclude(id=self.id).exists():
+            raise ValidationError("You already have a club with this name.")
+
     def save(self, *args, **kwargs):
-        if self.latitude and self.longitude:
-            try:
-                lat, lon = float(self.latitude), float(self.longitude)
-                new_location = (lat, lon)
-
-                # Fetch all existing clubs
-                existing_clubs = Club.objects.exclude(id=self.id).values_list("latitude", "longitude", "name")
-
-                for club_lat, club_lon, club_name in existing_clubs:
-                    if club_lat and club_lon:
-                        club_location = (float(club_lat), float(club_lon))
-                        distance = geodesic(new_location, club_location).km
-
-                        if distance < 1.0:
-                            raise ValidationError(f"A club named '{club_name}' already exists within 1 km radius.")
-
-            except ValueError:
-                raise ValidationError("Invalid latitude or longitude format.")
-
+        self.clean()
         super().save(*args, **kwargs)
 
     def __str__(self):
